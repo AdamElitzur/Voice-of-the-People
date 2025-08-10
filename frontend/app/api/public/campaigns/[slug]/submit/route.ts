@@ -28,8 +28,8 @@ export async function POST(
       .single();
     if (cErr || !campaign) {
       return NextResponse.json(
-        { error: "campaign not found" },
-        { status: 404 }
+        { notFound: true, message: "Campaign is not available" },
+        { status: 200 }
       );
     }
 
@@ -61,8 +61,8 @@ export async function POST(
     }
     if (missing.length) {
       return NextResponse.json(
-        { error: `Missing required: ${missing.join(", ")}` },
-        { status: 400 }
+        { ok: false, message: `Missing required: ${missing.join(", ")}` },
+        { status: 200 }
       );
     }
 
@@ -102,11 +102,11 @@ export async function POST(
       console.warn("[pinecone upsert failed for response]", e.message);
     }
 
-    return NextResponse.json(inserted, { status: 201 });
+    return NextResponse.json({ ok: true, data: inserted }, { status: 200 });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "submit failed" },
-      { status: 500 }
+      { ok: false, message: "submit failed" },
+      { status: 200 }
     );
   }
 }

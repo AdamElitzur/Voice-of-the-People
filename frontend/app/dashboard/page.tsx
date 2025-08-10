@@ -14,13 +14,16 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState, useTransition } from "react";
 import { ensureAdmin, listDashboardCampaigns } from "@/app/actions/campaigns";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 
 export default function DashboardPage() {
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const { push } = toast;
     ensureAdmin();
     const load = async () => {
       try {
@@ -130,20 +133,14 @@ export default function DashboardPage() {
                     >
                       Preview
                     </Link>
-                    {c.share_slug && (
-                      <button
-                        type="button"
-                        className={cn(buttonVariants({ variant: "ghost" }))}
-                        onClick={() => {
-                          const url = `${window.location.origin}/f/${c.share_slug}`;
-                          navigator.clipboard
-                            .writeText(url)
-                            .then(() => alert("Share link copied to clipboard"))
-                            .catch(() => window.open(url, "_blank"));
-                        }}
-                      >
-                        Share link
-                      </button>
+                    <Link
+                      href={`/campaigns/${c.id}/analytics`}
+                      className={cn(buttonVariants({ variant: "ghost" }))}
+                    >
+                      Analytics
+                    </Link>
+                    {c.share_slug && c.is_published && (
+                      <ShareLinkButton slug={c.share_slug} />
                     )}
                   </CardContent>
                 </Card>
@@ -153,5 +150,24 @@ export default function DashboardPage() {
         </main>
       </SignedIn>
     </>
+  );
+}
+
+function ShareLinkButton({ slug }: { slug: string }) {
+  const { push } = useToast();
+  return (
+    <button
+      type="button"
+      className={cn(buttonVariants({ variant: "ghost" }))}
+      onClick={() => {
+        const url = `${window.location.origin}/f/${slug}`;
+        navigator.clipboard
+          .writeText(url)
+          .then(() => push({ title: "Share link copied", description: url }))
+          .catch(() => window.open(url, "_blank"));
+      }}
+    >
+      Share link
+    </button>
   );
 }

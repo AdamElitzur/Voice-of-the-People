@@ -15,6 +15,7 @@ import { GripVertical, Trash2, Type, ListChecks, IdCard } from "lucide-react";
 // Back-to-dashboard header removed per request; clean imports
 import { SiteHeader } from "@/components/site-header";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
+import { useToast } from "@/components/ui/toast";
 import { getCampaignById, updateCampaign } from "@/app/actions/campaigns";
 
 type QuestionType = "short_text" | "multiple_choice" | "contact_info";
@@ -61,6 +62,7 @@ export default function EditCampaignPage() {
   const [published, setPublished] = useState<boolean>(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [shareSlug, setShareSlug] = useState<string | null>(null);
+  const { push } = useToast();
 
   useEffect(() => {
     const load = async () => {
@@ -324,7 +326,9 @@ export default function EditCampaignPage() {
                         const url = `${window.location.origin}/f/${shareSlug}`;
                         navigator.clipboard
                           .writeText(url)
-                          .then(() => alert("Share link copied to clipboard"))
+                          .then(() =>
+                            push({ title: "Share link copied", description: url })
+                          )
                           .catch(() => window.open(url, "_blank"));
                       }}
                     >
