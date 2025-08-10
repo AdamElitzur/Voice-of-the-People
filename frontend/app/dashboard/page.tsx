@@ -1,6 +1,13 @@
 "use client";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SiteHeader } from "@/components/site-header";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -9,6 +16,7 @@ export default function DashboardPage() {
   // Data integration pending: will load campaigns/responses from API/database.
   return (
     <>
+      <SiteHeader />
       <SignedOut>
         <RedirectToSignIn redirectUrl="/dashboard" />
       </SignedOut>
@@ -29,7 +37,9 @@ export default function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>No campaigns yet</CardTitle>
-              <CardDescription>Create your first campaign to start collecting responses</CardDescription>
+              <CardDescription>
+                Create your first campaign to start collecting responses
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Link
@@ -48,5 +58,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-
