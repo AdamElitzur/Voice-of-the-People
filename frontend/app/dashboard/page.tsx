@@ -1,5 +1,5 @@
 "use client";
-import { SignedIn, SignedOut, RedirectToSignIn, useAuth } from "@clerk/nextjs";
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 import { SiteHeader } from "@/components/site-header";
 import {
   Card,
@@ -12,29 +12,24 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
-import axios from "axios";
 
 export default function DashboardPage() {
   // Data integration pending: will load campaigns/responses from API/database.
-  const { getToken } = useAuth();
-
   useEffect(() => {
-    const fetchCampaigns = async () => {
+    const pingNewAdmin = async () => {
       try {
-        const token = await getToken();
-        if (!token) return;
-        const res = await axios.post(
-          "/api/newAdmin",
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        console.log(res.data);
+        const res = await fetch("/api/newAdmin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        });
+        // optional: const data = await res.json();
       } catch (e) {
         console.error(e);
       }
     };
-    fetchCampaigns();
-  }, [getToken]);
+    pingNewAdmin();
+  }, []);
 
   return (
     <>
