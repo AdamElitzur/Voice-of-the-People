@@ -15,6 +15,7 @@ import { GripVertical, Plus, Trash2, Type, ListChecks } from "lucide-react";
 // Removed back-to-dashboard link header
 import { SiteHeader } from "@/components/site-header";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
+import { ensureAdmin, createCampaign } from "@/app/actions/campaigns";
 
 type QuestionType = "short_text" | "multiple_choice";
 
@@ -176,14 +177,7 @@ export default function NewCampaignPage() {
     try {
       setIsSaving(true);
       // Ensure admin user exists (needed for FK on campaigns.created_by)
-      try {
-        await fetch("/api/newAdmin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-          cache: "no-store",
-        });
-      } catch {}
+      await ensureAdmin();
 
       const body = {
         title: title?.trim() || "Untitled campaign",
@@ -196,17 +190,7 @@ export default function NewCampaignPage() {
         multiple_choice_options: null,
         is_published: status === "published",
       };
-      const res = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Failed to save campaign");
-      }
-      // Optionally: const created = await res.json();
+      await createCampaign(body as any);
       router.push("/dashboard");
     } catch (e) {
       console.error(e);

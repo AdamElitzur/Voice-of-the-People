@@ -1,82 +1,69 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { ensureSupabaseConfigured, supabase } from "../../_lib/server";
 
 export async function GET(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (!backendUrl) {
-    return NextResponse.json(
-      { error: "NEXT_PUBLIC_BACKEND_URL is not set" },
-      { status: 500 }
-    );
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    ensureSupabaseConfigured();
+    const { data, error } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("id", params.id)
+      .eq("created_by", userId)
+      .single();
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "fetch failed" }, { status: 500 });
   }
-  const { getToken } = await auth();
-  const token = await getToken();
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const res = await fetch(`${backendUrl}/api/campaigns/${params.id}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  const data = await res.json().catch(() => ({}));
-  return NextResponse.json(data, { status: res.status });
 }
 
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (!backendUrl) {
-    return NextResponse.json(
-      { error: "NEXT_PUBLIC_BACKEND_URL is not set" },
-      { status: 500 }
-    );
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    ensureSupabaseConfigured();
+    const updates = (await req.json().catch(() => ({}))) || {};
+    delete (updates as any).id;
+    delete (updates as any).created_by;
+    const { data, error } = await supabase
+      .from("campaigns")
+      .update(updates)
+      .eq("id", params.id)
+      .eq("created_by", userId)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "update failed" }, { status: 500 });
   }
-  const { getToken } = await auth();
-  const token = await getToken();
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const body = await req.json().catch(() => undefined);
-  const res = await fetch(`${backendUrl}/api/campaigns/${params.id}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-  });
-  const data = await res.json().catch(() => ({}));
-  return NextResponse.json(data, { status: res.status });
 }
 
 export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (!backendUrl) {
-    return NextResponse.json(
-      { error: "NEXT_PUBLIC_BACKEND_URL is not set" },
-      { status: 500 }
-    );
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    ensureSupabaseConfigured();
+    const { error } = await supabase
+      .from("campaigns")
+      .delete()
+      .eq("id", params.id)
+      .eq("created_by", userId);
+    if (error) throw error;
+    return NextResponse.json({}, { status: 204 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "delete failed" }, { status: 500 });
   }
-  const { getToken } = await auth();
-  const token = await getToken();
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const res = await fetch(`${backendUrl}/api/campaigns/${params.id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  const data = await res.json().catch(() => ({}));
-  return NextResponse.json(data, { status: res.status });
 }

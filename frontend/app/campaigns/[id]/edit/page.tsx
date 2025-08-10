@@ -15,6 +15,7 @@ import { GripVertical, Trash2, Type, ListChecks } from "lucide-react";
 // Back-to-dashboard header removed per request; clean imports
 import { SiteHeader } from "@/components/site-header";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
+import { getCampaignById, updateCampaign } from "@/app/actions/campaigns";
 
 type QuestionType = "short_text" | "multiple_choice";
 
@@ -60,14 +61,7 @@ export default function EditCampaignPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/campaigns/${campaignId}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error || "Failed to load campaign");
-        }
-        const data = await res.json();
+        const data = await getCampaignById(campaignId);
         setTitle(data.title || "");
         setQuestions(data.form_schema?.questions || []);
         setPublished(Boolean(data.is_published));
@@ -211,16 +205,7 @@ export default function EditCampaignPage() {
         title: title?.trim() || "Untitled campaign",
         form_schema: { version: 1, questions },
       };
-      const res = await fetch(`/api/campaigns/${campaignId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Failed to save changes");
-      }
+      await updateCampaign(campaignId, body);
     } catch (e) {
       console.error(e);
       alert((e as Error).message);
@@ -233,18 +218,7 @@ export default function EditCampaignPage() {
     try {
       setIsSaving(true);
       const next = !published;
-      const res = await fetch(`/api/campaigns/${campaignId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_published: next }),
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          data?.error || `Failed to ${next ? "publish" : "unpublish"}`
-        );
-      }
+      await updateCampaign(campaignId, { is_published: next });
       setPublished(next);
     } catch (e) {
       console.error(e);

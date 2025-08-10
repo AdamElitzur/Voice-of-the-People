@@ -1,33 +1,37 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { ensureSupabaseConfigured, supabase } from "../_lib/server";
 
 export async function POST(req: Request) {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (!backendUrl) {
+  const { userId } = await auth();
+  if (!userId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    await req.json().catch(() => undefined); // body is optional
+    ensureSupabaseConfigured();
+
+    const { data: existing, error: selectError } = await supabase
+      .from("admin_users")
+      .select("*")
+      .eq("clerk_user_id", userId)
+      .maybeSingle();
+    if (selectError) throw selectError;
+
+    if (!existing) {
+      const { data: inserted, error: insertError } = await supabase
+        .from("admin_users")
+        .insert({ clerk_user_id: userId })
+        .select("*")
+        .single();
+      if (insertError) throw insertError;
+      return NextResponse.json(inserted, { status: 201 });
+    }
+
+    return NextResponse.json(existing, { status: 200 });
+  } catch (err: any) {
     return NextResponse.json(
-      { error: "NEXT_PUBLIC_BACKEND_URL is not set" },
+      { error: err.message || "newAdmin failed" },
       { status: 500 }
     );
   }
-
-  const { getToken } = await auth();
-  const token = await getToken();
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json().catch(() => undefined);
-
-  const res = await fetch(`${backendUrl}/api/newAdmin`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-  });
-
-  const data = await res.json().catch(() => ({}));
-  return NextResponse.json(data, { status: res.status });
 }

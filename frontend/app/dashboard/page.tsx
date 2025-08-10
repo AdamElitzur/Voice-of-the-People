@@ -11,7 +11,8 @@ import {
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { ensureAdmin, listDashboardCampaigns } from "@/app/actions/campaigns";
 import { Badge } from "@/components/ui/badge";
 
 export default function DashboardPage() {
@@ -20,29 +21,12 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const pingNewAdmin = async () => {
-      try {
-        const res = await fetch("/api/newAdmin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        });
-        // optional: const data = await res.json();
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    pingNewAdmin();
+    ensureAdmin();
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch("/api/dashboard", { cache: "no-store" });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error || "Failed to load campaigns");
-        }
-        const data = await res.json();
+        const data = await listDashboardCampaigns();
         setCampaigns(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error(e);

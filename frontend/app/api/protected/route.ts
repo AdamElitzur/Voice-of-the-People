@@ -1,16 +1,26 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { supabase } from "../_lib/server";
 
 export async function GET() {
-  const { getToken } = await auth();
-  const token = await getToken();
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/protected`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
+  let supabaseStatus = "unconfigured";
+  if (supabase) {
+    try {
+      // simple call to verify connectivity; requires service role
+      const { data, error } = await supabase.auth.admin.getUserById(userId);
+      if (error) throw error;
+      supabaseStatus = data?.user ? "ok" : "ok";
+    } catch (e: any) {
+      supabaseStatus = `error: ${e.message}`;
+    }
+  }
+
+  return NextResponse.json({
+    message: "You have access to a protected route.",
+    userId,
+    supabaseStatus,
   });
-
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
 }
