@@ -1,10 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GripVertical, Plus, Trash2, Type, ListChecks } from "lucide-react";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { SiteHeader } from "@/components/site-header";
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 
 type QuestionType = "short_text" | "multiple_choice";
 
@@ -36,6 +48,7 @@ export default function NewCampaignPage() {
   const [title, setTitle] = useState<string>("Untitled campaign");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
+  const router = useRouter();
 
   const addShortText = () => {
     const newQuestion: ShortTextQuestion = {
@@ -80,11 +93,15 @@ export default function NewCampaignPage() {
   };
 
   const updateQuestionTitle = (id: string, newTitle: string) => {
-    setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, title: newTitle } : q)));
+    setQuestions((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, title: newTitle } : q))
+    );
   };
 
   const toggleRequired = (id: string) => {
-    setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, required: !q.required } : q)));
+    setQuestions((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, required: !q.required } : q))
+    );
   };
 
   const addOption = (id: string) => {
@@ -93,7 +110,13 @@ export default function NewCampaignPage() {
         q.id === id && q.type === "multiple_choice"
           ? {
               ...q,
-              options: [...q.options, { id: generateId("opt"), label: `Option ${q.options.length + 1}` }],
+              options: [
+                ...q.options,
+                {
+                  id: generateId("opt"),
+                  label: `Option ${q.options.length + 1}`,
+                },
+              ],
             }
           : q
       )
@@ -104,7 +127,12 @@ export default function NewCampaignPage() {
     setQuestions((prev) =>
       prev.map((q) =>
         q.id === id && q.type === "multiple_choice"
-          ? { ...q, options: q.options.map((o) => (o.id === optionId ? { ...o, label } : o)) }
+          ? {
+              ...q,
+              options: q.options.map((o) =>
+                o.id === optionId ? { ...o, label } : o
+              ),
+            }
           : q
       )
     );
@@ -122,7 +150,11 @@ export default function NewCampaignPage() {
 
   const toggleAllowMultiple = (id: string) => {
     setQuestions((prev) =>
-      prev.map((q) => (q.id === id && q.type === "multiple_choice" ? { ...q, allowMultiple: !q.allowMultiple } : q))
+      prev.map((q) =>
+        q.id === id && q.type === "multiple_choice"
+          ? { ...q, allowMultiple: !q.allowMultiple }
+          : q
+      )
     );
   };
 
@@ -141,131 +173,227 @@ export default function NewCampaignPage() {
     window.open(`/campaigns/preview?data=${encoded}`, "_blank");
   };
 
+  const persistCampaign = (status: "draft" | "published") => {
+    // TODO: Integrate API/database persistence. For now, just navigate back.
+    if (status === "published") {
+      router.push("/dashboard");
+    }
+  };
+
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">New campaign</h1>
-          <p className="text-sm text-muted-foreground">Build a form to gather public input</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={openPreview}>Preview</Button>
-          <Button variant="outline">Save draft</Button>
-          <Button className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white">Publish</Button>
-        </div>
-      </div>
+    <>
+      <SiteHeader />
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        <SignedOut>
+          <RedirectToSignIn redirectUrl="/campaigns/new" />
+        </SignedOut>
+        <SignedIn>
+          <header className="mb-6 flex items-center justify-between">
+            <Link
+              href="/dashboard"
+              className={cn(buttonVariants({ variant: "ghost" }))}
+            >
+              Back to dashboard
+            </Link>
+            <div className="text-sm text-muted-foreground">
+              Campaign builder
+            </div>
+          </header>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                New campaign
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Build a form to gather public input
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={openPreview}>
+                Preview
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => persistCampaign("draft")}
+              >
+                Save draft
+              </Button>
+              <Button
+                onClick={() => persistCampaign("published")}
+                className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white"
+              >
+                Publish
+              </Button>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{title || "Untitled campaign"}</CardTitle>
-              <CardDescription>Give your campaign a clear title</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <label className="text-sm font-medium">Title</label>
-              <input
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Eg. Downtown traffic improvements"
-                className="w-full h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{title || "Untitled campaign"}</CardTitle>
+                  <CardDescription>
+                    Give your campaign a clear title
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <label className="text-sm font-medium">Title</label>
+                  <input
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Eg. Downtown traffic improvements"
+                    className="w-full h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Questions</CardTitle>
-                <CardDescription>Drag to reorder. Click to edit.</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button onClick={addShortText} variant="outline" className="gap-2"><Type className="h-4 w-4" /> Short text</Button>
-                <Button onClick={addMultipleChoice} variant="outline" className="gap-2"><ListChecks className="h-4 w-4" /> Multiple choice</Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {questions.length === 0 && (
-                <p className="text-sm text-muted-foreground">No questions yet. Add one to get started.</p>
-              )}
-              {questions.map((q) => (
-                <div
-                  key={q.id}
-                  className="rounded-lg border p-3 bg-card"
-                  draggable
-                  onDragStart={() => onDragStart(q.id)}
-                  onDragOver={onDragOver}
-                  onDrop={() => onDrop(q.id)}
-                >
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Questions</CardTitle>
+                    <CardDescription>
+                      Drag to reorder. Click to edit.
+                    </CardDescription>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    <input
-                      className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
-                      placeholder="Question title"
-                      onChange={(e) => updateQuestionTitle(q.id, e.target.value)}
-                    />
-                    <Badge variant="secondary" className="capitalize">{q.type.replace("_", " ")}</Badge>
-                    <Button variant="ghost" onClick={() => toggleRequired(q.id)} className="text-xs">
-                      {q.required ? "Required" : "Optional"}
+                    <Button
+                      onClick={addShortText}
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <Type className="h-4 w-4" /> Short text
                     </Button>
-                    <Button variant="ghost" onClick={() => removeQuestion(q.id)} aria-label="Remove">
-                      <Trash2 className="h-4 w-4" />
+                    <Button
+                      onClick={addMultipleChoice}
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <ListChecks className="h-4 w-4" /> Multiple choice
                     </Button>
                   </div>
-
-                  {q.type === "short_text" && (
-                    <div className="mt-3">
-                      <label className="text-xs text-muted-foreground">Placeholder</label>
-                      <input
-                        className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm"
-                        placeholder="Your answer..."
-                        onChange={(e) =>
-                          setQuestions((prev) =>
-                            prev.map((qq) => (qq.id === q.id ? { ...qq, placeholder: e.target.value } : qq))
-                          )
-                        }
-                      />
-                    </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {questions.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No questions yet. Add one to get started.
+                    </p>
                   )}
+                  {questions.map((q) => (
+                    <div
+                      key={q.id}
+                      className="rounded-lg border p-3 bg-card"
+                      draggable
+                      onDragStart={() => onDragStart(q.id)}
+                      onDragOver={onDragOver}
+                      onDrop={() => onDrop(q.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        <input
+                          className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+                          placeholder="Question title"
+                          onChange={(e) =>
+                            updateQuestionTitle(q.id, e.target.value)
+                          }
+                        />
+                        <Badge variant="secondary" className="capitalize">
+                          {q.type.replace("_", " ")}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          onClick={() => toggleRequired(q.id)}
+                          className="text-xs"
+                        >
+                          {q.required ? "Required" : "Optional"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => removeQuestion(q.id)}
+                          aria-label="Remove"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
 
-                  {q.type === "multiple_choice" && (
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs text-muted-foreground">Options</label>
-                        <Button variant="outline" size="sm" onClick={() => addOption(q.id)} className="h-7 px-2">Add option</Button>
-                      </div>
-                      <div className="space-y-2">
-                        {q.options.map((opt) => (
-                          <div key={opt.id} className="flex items-center gap-2">
-                            <input
-                              className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
-                              placeholder="Option"
-                              onChange={(e) => updateOption(q.id, opt.id, e.target.value)}
-                            />
-                            <Button variant="ghost" size="sm" onClick={() => removeOption(q.id, opt.id)} className="h-7 px-2">Remove</Button>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="pt-1">
-                        <label className="inline-flex items-center gap-2 text-sm">
+                      {q.type === "short_text" && (
+                        <div className="mt-3">
+                          <label className="text-xs text-muted-foreground">
+                            Placeholder
+                          </label>
                           <input
-                            type="checkbox"
-                            checked={q.allowMultiple}
-                            onChange={() => toggleAllowMultiple(q.id)}
+                            className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm"
+                            placeholder="Your answer..."
+                            onChange={(e) =>
+                              setQuestions((prev) =>
+                                prev.map((qq) =>
+                                  qq.id === q.id
+                                    ? { ...qq, placeholder: e.target.value }
+                                    : qq
+                                )
+                              )
+                            }
                           />
-                          Allow multiple selections
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+                        </div>
+                      )}
 
-      </div>
-    </main>
+                      {q.type === "multiple_choice" && (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs text-muted-foreground">
+                              Options
+                            </label>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => addOption(q.id)}
+                              className="h-7 px-2"
+                            >
+                              Add option
+                            </Button>
+                          </div>
+                          <div className="space-y-2">
+                            {q.options.map((opt) => (
+                              <div
+                                key={opt.id}
+                                className="flex items-center gap-2"
+                              >
+                                <input
+                                  className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+                                  placeholder="Option"
+                                  onChange={(e) =>
+                                    updateOption(q.id, opt.id, e.target.value)
+                                  }
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeOption(q.id, opt.id)}
+                                  className="h-7 px-2"
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="pt-1">
+                            <label className="inline-flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={q.allowMultiple}
+                                onChange={() => toggleAllowMultiple(q.id)}
+                              />
+                              Allow multiple selections
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </SignedIn>
+      </main>
+    </>
   );
 }
-
-
