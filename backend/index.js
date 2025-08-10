@@ -303,7 +303,7 @@ app.post('/api/newAdmin', requireAuth(), async (req, res) => {
     const { data: admins, error: adminsError } = await supabase
         .from('admins')
         .select('*')
-        .eq('user_id', userId)
+        .eq('clerk_user_id', userId)
         .single();
     if (adminsError) throw adminsError;
     if (admins.length === 0) {
