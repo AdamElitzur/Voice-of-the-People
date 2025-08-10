@@ -10,6 +10,8 @@
 - `CORS_ORIGIN`: frontend origin
 - `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`: from Clerk dashboard
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`: from Supabase project settings
+- `PINECONE_API_KEY`: from Pinecone console
+- `OPENAI_API_KEY`: for embeddings when using OpenAI
 
 ### Routes
 

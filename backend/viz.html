@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Embedding Viz</title>
+</head>
+
+<body
+    style="margin:0; padding:16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111; background:#fafafa;">
+    <div style="display:flex; flex-direction:column; gap:12px; max-width:1200px; margin:0 auto;">
+        <h2 style="margin:0 0 8px 0; font-size:20px; font-weight:600;">Embedding Visualization (2D PCA)</h2>
+
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <label for="queryText" style="font-size:14px; color:#333;">Query:</label>
+            <input id="queryText" type="text" value="hi"
+                style="flex:1; min-width:240px; padding:8px 10px; border:1px solid #ddd; border-radius:6px; background:#fff; font-size:14px;" />
+
+            <label for="topK" style="font-size:14px; color:#333;">topK:</label>
+            <input id="topK" type="number" min="1" max="200" value="200"
+                style="width:90px; padding:8px 10px; border:1px solid #ddd; border-radius:6px; background:#fff; font-size:14px;" />
+
+            <button id="runBtn"
+                style="padding:10px 14px; border:1px solid #0d6efd; background:#0d6efd; color:#fff; border-radius:6px; font-size:14px; cursor:pointer;">Run
+                Query</button>
+            <span id="status" style="font-size:13px; color:#555;">Idle</span>
+        </div>
+
+        <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+            <canvas id="plot" width="1000" height="700"
+                style="width:100%; max-width:1000px; height:auto; border:1px solid #e5e7eb; border-radius:8px; background:#fff;"></canvas>
+            <div
+                style="flex:1; min-width:260px; background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:12px;">
+                <div style="font-weight:600; margin-bottom:8px; font-size:14px;">Legend</div>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                    <span
+                        style="display:inline-block; width:12px; height:12px; background:#d32f2f; border-radius:50%;"></span>
+                    <span style="font-size:13px; color:#222;">Query point</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                    <span
+                        style="display:inline-block; width:12px; height:12px; background:#2563eb; border-radius:50%;"></span>
+                    <span style="font-size:13px; color:#222;">Matched points (label = metadata.text)</span>
+                </div>
+                <div id="details" style="margin-top:8px; font-size:13px; color:#444; white-space:pre-wrap;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiUrl = 'http://localhost:4000/api/query';
+        const canvas = document.getElementById('plot');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const detailsEl = document.getElementById('details');
+        const runBtn = document.getElementById('runBtn');
+        const queryInput = document.getElementById('queryText');
+        const topKInput = document.getElementById('topK');
+
+        function setStatus(text) {
+            statusEl.textContent = text;
+        }
+
+        function dot(a, b) {
+            let s = 0.0;
+            for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+            return s;
+        }
+
+        function subtract(a, b) {
+            const out = new Array(a.length);
+            for (let i = 0; i < a.length; i++) out[i] = a[i] - b[i];
+            return out;
+        }
+
+        function computeMean(vectors) {
+            if (!vectors.length) return [];
+            const d = vectors[0].length;
+            const mean = new Array(d).fill(0);
+            for (const v of vectors) {
+                for (let i = 0; i < d; i++) mean[i] += v[i];
+            }
+            for (let i = 0; i < d; i++) mean[i] /= vectors.length;
+            return mean;
+        }
+
+        function l2Norm(v) {
+            return Math.sqrt(dot(v, v));
+        }
+
+        function normalize(v) {
+            const n = l2Norm(v) || 1;
+            const out = new Array(v.length);
+            for (let i = 0; i < v.length; i++) out[i] = v[i] / n;
+            return out;
+        }
+
+        function matVecMulSymmetric(G, v) {
+            const n = G.length;
+            const out = new Array(n).fill(0);
+            for (let i = 0; i < n; i++) {
+                let s = 0;
+                const Gi = G[i];
+                for (let j = 0; j < n; j++) s += Gi[j] * v[j];
+                out[i] = s;
+            }
+            return out;
+        }
+
+        function powerIterationTopEigenpair(G, iters = 100, tol = 1e-6) {
+            const n = G.length;
+            let v = new Array(n).fill(0).map(() => Math.random() - 0.5);
+            v = normalize(v);
+            let lambda = 0;
+            for (let t = 0; t < iters; t++) {
+                const w = matVecMulSymmetric(G, v);
+                const vNew = normalize(w);
+                const lambdaNew = dot(vNew, matVecMulSymmetric(G, vNew));
+                if (Math.abs(lambdaNew - lambda) < tol) {
+                    v = vNew; lambda = lambdaNew; break;
+                }
+                v = vNew; lambda = lambdaNew;
+            }
+            return { eigenvalue: lambda, eigenvector: v };
+        }
+
+        function deflate(G, eigenvalue, eigenvector) {
+            const n = G.length;
+            const v = eigenvector;
+            // G := G - lambda * v v^T
+            const scaled = eigenvalue;
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    G[i][j] -= scaled * v[i] * v[j];
+                }
+            }
+            return G;
+        }
+
+        function pca2DFromEmbeddings(embeddings) {
+            const n = embeddings.length;
+            if (n === 0) return { xy: [], explained: [0, 0] };
+            if (n === 1) return { xy: [[0, 0]], explained: [1, 0] };
+            const mean = computeMean(embeddings);
+            const centered = embeddings.map(v => subtract(v, mean));
+            // Gram matrix G = Xc Xc^T (n x n)
+            const G = new Array(n);
+            for (let i = 0; i < n; i++) {
+                G[i] = new Array(n);
+            }
+            for (let i = 0; i < n; i++) {
+                G[i][i] = dot(centered[i], centered[i]);
+                for (let j = i + 1; j < n; j++) {
+                    const val = dot(centered[i], centered[j]);
+                    G[i][j] = val;
+                    G[j][i] = val;
+                }
+            }
+            const { eigenvalue: l1, eigenvector: v1 } = powerIterationTopEigenpair(G, 200);
+            deflate(G, l1, v1);
+            const { eigenvalue: l2, eigenvector: v2 } = powerIterationTopEigenpair(G, 200);
+            const s1 = Math.sqrt(Math.max(l1, 0));
+            const s2 = Math.sqrt(Math.max(l2, 0));
+            const coords = new Array(n);
+            for (let i = 0; i < n; i++) {
+                coords[i] = [v1[i] * s1, v2[i] * s2];
+            }
+            return { xy: coords, explained: [l1, l2] };
+        }
+
+        function getBounds(points2d) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const [x, y] of points2d) {
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
+            if (!isFinite(minX)) minX = -1; if (!isFinite(maxX)) maxX = 1;
+            if (!isFinite(minY)) minY = -1; if (!isFinite(maxY)) maxY = 1;
+            return { minX, maxX, minY, maxY };
+        }
+
+        function draw(points2d, labels, isQueryFlags) {
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+
+            const margin = 40;
+            const { minX, maxX, minY, maxY } = getBounds(points2d);
+            const scaleX = (w - 2 * margin) / (maxX - minX || 1);
+            const scaleY = (h - 2 * margin) / (maxY - minY || 1);
+
+            function toScreen([x, y]) {
+                const sx = margin + (x - minX) * scaleX;
+                const sy = h - margin - (y - minY) * scaleY;
+                return [sx, sy];
+            }
+
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.rect(margin, margin, w - 2 * margin, h - 2 * margin);
+            ctx.stroke();
+
+            for (let i = 0; i < points2d.length; i++) {
+                const [sx, sy] = toScreen(points2d[i]);
+                const isQuery = isQueryFlags[i];
+                const color = isQuery ? '#d32f2f' : '#2563eb';
+                ctx.beginPath();
+                ctx.arc(sx, sy, isQuery ? 5 : 3, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+
+                const label = labels[i] ?? '';
+                if (label) {
+                    ctx.font = isQuery ? 'bold 12px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial' : '12px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial';
+                    ctx.fillStyle = '#111';
+                    ctx.textBaseline = 'top';
+                    const offsetX = 6, offsetY = 4;
+                    ctx.fillText(label, sx + offsetX, sy + offsetY);
+                }
+            }
+        }
+
+        async function run() {
+            const text = queryInput.value.trim();
+            const topK = Math.max(1, Math.min(200, Number(topKInput.value) || 200));
+            setStatus('Fetching...');
+            detailsEl.textContent = '';
+            try {
+                const resp = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, topK })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || ('Request failed: ' + resp.status));
+                }
+                const data = await resp.json();
+                // Build embeddings list: [query, ...points]
+                const embeddings = [];
+                const labels = [];
+                const isQuery = [];
+                if (data.query && Array.isArray(data.query.embedding)) {
+                    embeddings.push(data.query.embedding);
+                    labels.push('QUERY: ' + (data.query.text || ''));
+                    isQuery.push(true);
+                }
+                const pts = Array.isArray(data.points) ? data.points : [];
+                for (const p of pts) {
+                    if (Array.isArray(p.values)) {
+                        embeddings.push(p.values);
+                        const t = (p.metadata && (p.metadata.text || p.metadata.title)) || '';
+                        const label = t ? String(t) : (p.id ? String(p.id) : '');
+                        labels.push(label);
+                        isQuery.push(false);
+                    }
+                }
+                const { xy, explained } = pca2DFromEmbeddings(embeddings);
+                draw(xy, labels, isQuery);
+                const used = embeddings.length;
+                setStatus('Done. Plotted ' + used + ' points.');
+                detailsEl.textContent = 'Explained (unnormalized): [' + explained.map(x => x.toFixed(2)).join(', ') + ']\n' +
+                    'Note: PCA via Gram matrix on up to 200 points.';
+            } catch (e) {
+                setStatus('Error: ' + e.message);
+                console.error(e);
+            }
+        }
+
+        runBtn.addEventListener('click', run);
+        window.addEventListener('load', run);
+    </script>
+</body>
+
+</html>
