@@ -88,11 +88,20 @@ export default function CampaignDataPage() {
     const [loading, setLoading] = useState<boolean>(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
-    const [prompt, setPrompt] = useState<string>('Show responses per day as a line chart');
-    const [chartType, setChartType] = useState<'bar' | 'line' | 'pie' | 'doughnut' | 'radar' | 'polarArea' | 'scatter' | 'bubble' | ''>('line');
-    const [payload, setPayload] = useState<ChartPayload | null>(null);
+    const [prompt, setPrompt] = useState<string>('Summarize responses and plot responses per day');
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
+
+    type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; chart?: ChartPayload['chart'] | null };
+    const [messages, setMessages] = useState<ChatMessage[]>([
+        {
+            id: `m_${Math.random().toString(36).slice(2, 9)}`,
+            role: 'assistant',
+            content:
+                "Hi! Ask me to explore and visualize this campaign's responses. For example: 'Show responses per day', or 'Which multiple-choice option was most popular?'",
+            chart: null,
+        },
+    ]);
 
     useEffect(() => {
         const load = async () => {
@@ -120,12 +129,22 @@ export default function CampaignDataPage() {
         try {
             setIsSubmitting(true);
             setSubmitError(null);
+            const nextUser: ChatMessage = {
+                id: `m_${Math.random().toString(36).slice(2, 9)}`,
+                role: 'user',
+                content: prompt.trim(),
+                chart: null,
+            };
+            setMessages((prev) => [...prev, nextUser]);
+
             const res = await fetch('/api/chat-charts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: [{ role: 'user', content: prompt }],
-                    chartType: chartType || undefined,
+                    messages: [
+                        ...messages.map((m) => ({ role: m.role, content: m.content })),
+                        { role: 'user', content: prompt },
+                    ],
                     data: { campaignId, responses },
                 }),
             });
@@ -134,13 +153,19 @@ export default function CampaignDataPage() {
                 throw new Error(err?.error || 'Request failed');
             }
             const json = (await res.json()) as ChartPayload;
-            setPayload(json);
+            const assistantMsg: ChatMessage = {
+                id: `m_${Math.random().toString(36).slice(2, 9)}`,
+                role: 'assistant',
+                content: json.assistantText || json.description || 'Here is the chart.',
+                chart: json.chart,
+            };
+            setMessages((prev) => [...prev, assistantMsg]);
         } catch (e: any) {
             setSubmitError(e?.message || String(e));
         } finally {
             setIsSubmitting(false);
         }
-    }, [prompt, chartType, campaignId, responses]);
+    }, [prompt, campaignId, responses, messages]);
 
     const pageStyle: React.CSSProperties = { padding: 20 };
     const cardStyle: React.CSSProperties = {
@@ -168,14 +193,15 @@ export default function CampaignDataPage() {
     const selectStyle: React.CSSProperties = { width: '100%', padding: '12px 14px', background: '#111827', color: '#f1f5f9', border: '1px solid #374151', borderRadius: 10 };
     const buttonStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', marginTop: 12, fontWeight: 600 };
     const chartContainerStyle: React.CSSProperties = { width: '100%', height: 420 };
+    const chatWrap: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 540, overflowY: 'auto', padding: 8, background: '#0b0f1a', border: '1px solid #1f2937', borderRadius: 10 };
+    const bubbleUser: React.CSSProperties = { alignSelf: 'flex-end', maxWidth: '75%', background: '#1d4ed8', color: 'white', padding: '10px 12px', borderRadius: 12 };
+    const bubbleAssistant: React.CSSProperties = { alignSelf: 'flex-start', maxWidth: '75%', background: '#111827', color: '#e5e7eb', padding: '10px 12px', borderRadius: 12 };
 
     return (
         <div style={pageStyle}>
             <div style={cardStyle}>
-                <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Campaign Data & Charts</h2>
-                <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>
-                    Use OpenAI to chat with this campaign's responses and render Chart.js visualizations.
-                </p>
+                <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Campaign Chat</h2>
+                <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>Ask questions about this campaign and I will answer and visualize with Chart.js when helpful.</p>
 
                 {loading ? (
                     <div style={{ fontSize: 14, color: '#9ca3af' }}>Loading responses…</div>
@@ -183,60 +209,39 @@ export default function CampaignDataPage() {
                     <div style={{ fontSize: 14, color: '#fca5a5' }}>{loadError}</div>
                 ) : (
                     <>
-                        <div>
-                            <label style={labelStyle}>Prompt</label>
-                            <input
-                                style={inputStyle}
-                                value={prompt}
-                                onChange={(e) => setPrompt(e.target.value)}
-                                placeholder="e.g., Show top 5 options chosen for Question 2 as a bar chart"
-                            />
+                        <div style={chatWrap}>
+                            {messages.map((m) => (
+                                <div key={m.id} style={m.role === 'user' ? bubbleUser : bubbleAssistant}>
+                                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>{m.content}</div>
+                                    {m.chart && (
+                                        <div style={{ marginTop: 10 }}>
+                                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Chart</div>
+                                            <div style={chartContainerStyle}>
+                                                <ChartRenderer payload={{ title: '', description: '', chart: m.chart }} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
 
-                        <div style={rowStyle}>
-                            <div>
-                                <label style={labelStyle}>Dataset (read-only preview)</label>
-                                <textarea
-                                    style={{ ...inputStyle, minHeight: 160, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}
-                                    value={JSON.stringify({ campaignId, total: responses?.length || 0, sample: (responses || []).slice(0, 3) }, null, 2)}
-                                    readOnly
+                        <div style={{ marginTop: 12 }}>
+                            <label style={labelStyle}>Your message</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8 }}>
+                                <input
+                                    style={inputStyle}
+                                    value={prompt}
+                                    onChange={(e) => setPrompt(e.target.value)}
+                                    placeholder="Ask a question or request a chart"
                                 />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Preferred Chart Type</label>
-                                <select style={selectStyle} value={chartType} onChange={(e) => setChartType((e.target.value as any) || '')}>
-                                    <option value="line">line</option>
-                                    <option value="bar">bar</option>
-                                    <option value="pie">pie</option>
-                                    <option value="doughnut">doughnut</option>
-                                    <option value="radar">radar</option>
-                                    <option value="polarArea">polarArea</option>
-                                    <option value="scatter">scatter</option>
-                                    <option value="bubble">bubble</option>
-                                </select>
                                 <button style={buttonStyle} onClick={onGenerate} disabled={isSubmitting || !responses}>
-                                    {isSubmitting ? 'Generating…' : 'Generate Chart'}
+                                    {isSubmitting ? 'Sending…' : 'Send'}
                                 </button>
-                                {submitError && (
-                                    <div style={{ marginTop: 8, color: '#fca5a5', fontSize: 13 }}>{submitError}</div>
-                                )}
                             </div>
+                            {submitError && (
+                                <div style={{ marginTop: 8, color: '#fca5a5', fontSize: 13 }}>{submitError}</div>
+                            )}
                         </div>
-
-                        {payload && (
-                            <div style={{ marginTop: 16 }}>
-                                <div style={{ marginBottom: 8 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 16 }}>{payload.title}</div>
-                                    <div style={{ color: '#9ca3af', fontSize: 13 }}>{payload.description}</div>
-                                </div>
-                                <div style={chartContainerStyle}>
-                                    <ChartRenderer payload={payload} />
-                                </div>
-                                {payload.assistantText && (
-                                    <div style={{ marginTop: 10, fontSize: 13, color: '#9ca3af' }}>{payload.assistantText}</div>
-                                )}
-                            </div>
-                        )}
                     </>
                 )}
             </div>
