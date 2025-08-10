@@ -11,13 +11,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GripVertical, Trash2, Type, ListChecks } from "lucide-react";
+import { GripVertical, Trash2, Type, ListChecks, IdCard } from "lucide-react";
 // Back-to-dashboard header removed per request; clean imports
 import { SiteHeader } from "@/components/site-header";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 import { getCampaignById, updateCampaign } from "@/app/actions/campaigns";
 
-type QuestionType = "short_text" | "multiple_choice";
+type QuestionType = "short_text" | "multiple_choice" | "contact_info";
 
 type BaseQuestion = {
   id: string;
@@ -37,7 +37,11 @@ type MultipleChoiceQuestion = BaseQuestion & {
   allowMultiple: boolean;
 };
 
-type Question = ShortTextQuestion | MultipleChoiceQuestion;
+type ContactInfoQuestion = BaseQuestion & { type: "contact_info" };
+type Question =
+  | ShortTextQuestion
+  | MultipleChoiceQuestion
+  | ContactInfoQuestion;
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
@@ -56,6 +60,7 @@ export default function EditCampaignPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [published, setPublished] = useState<boolean>(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [shareSlug, setShareSlug] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -64,7 +69,10 @@ export default function EditCampaignPage() {
         const data = await getCampaignById(campaignId);
         setTitle(data.title || "");
         setQuestions(data.form_schema?.questions || []);
-        setPublished(Boolean(data.is_published));
+        setPublished(
+          Boolean((data as any).is_published ?? (data as any).published)
+        );
+        setShareSlug(data.share_slug || null);
       } catch (e) {
         console.error(e);
         setError((e as Error).message);
@@ -97,6 +105,16 @@ export default function EditCampaignPage() {
         { id: generateId("opt"), label: "Option 2" },
       ],
       allowMultiple: false,
+    };
+    setQuestions((prev) => [...prev, newQuestion]);
+  };
+
+  const addContactInfo = () => {
+    const newQuestion: ContactInfoQuestion = {
+      id: generateId("q"),
+      type: "contact_info",
+      title: "Your contact information",
+      required: false,
     };
     setQuestions((prev) => [...prev, newQuestion]);
   };
@@ -218,8 +236,12 @@ export default function EditCampaignPage() {
     try {
       setIsSaving(true);
       const next = !published;
-      await updateCampaign(campaignId, { is_published: next });
-      setPublished(next);
+      const updated = await updateCampaign(campaignId, { is_published: next });
+      // Reflect the authoritative DB state instead of optimistic toggle
+      setPublished(
+        Boolean((updated as any)?.is_published ?? (updated as any)?.published)
+      );
+      if (updated?.share_slug) setShareSlug(updated.share_slug);
     } catch (e) {
       console.error(e);
       alert((e as Error).message);
@@ -295,6 +317,20 @@ export default function EditCampaignPage() {
                       ? "Unpublish"
                       : "Publish"}
                   </Button>
+                  {published && shareSlug && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        const url = `${window.location.origin}/f/${shareSlug}`;
+                        navigator.clipboard
+                          .writeText(url)
+                          .then(() => alert("Share link copied to clipboard"))
+                          .catch(() => window.open(url, "_blank"));
+                      }}
+                    >
+                      Share link
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -340,6 +376,13 @@ export default function EditCampaignPage() {
                           className="gap-2"
                         >
                           <ListChecks className="h-4 w-4" /> Multiple choice
+                        </Button>
+                        <Button
+                          onClick={addContactInfo}
+                          variant="outline"
+                          className="gap-2"
+                        >
+                          <IdCard className="h-4 w-4" /> Contact info
                         </Button>
                       </div>
                     </CardHeader>
@@ -472,6 +515,14 @@ export default function EditCampaignPage() {
                                   Allow multiple selections
                                 </label>
                               </div>
+                            </div>
+                          )}
+                          {q.type === "contact_info" && (
+                            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                              This question will show fields for name, email,
+                              and phone on the public form. Respondents can
+                              leave them blank unless you mark this question as
+                              required.
                             </div>
                           )}
                         </div>

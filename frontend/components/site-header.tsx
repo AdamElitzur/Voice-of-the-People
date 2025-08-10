@@ -17,6 +17,7 @@ export function SiteHeader() {
   const pathname = usePathname();
   const { isSignedIn } = useAuth();
   const isLanding = pathname === "/";
+  const isPublicForm = pathname?.startsWith("/f/") || pathname === "/f";
   const logoHref = isSignedIn && !isLanding ? "/dashboard" : "/";
   return (
     <header className="sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border">
@@ -27,32 +28,34 @@ export function SiteHeader() {
             Voice of the People
           </span>
         </Link>
-        <nav className="flex items-center gap-3">
-          <SignedOut>
-            <SignInButton mode="modal">
-              <Button variant="ghost" className="hidden sm:inline-flex">
-                Sign in
-              </Button>
-            </SignInButton>
-            <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
-              <Button className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white hover:from-blue-700 hover:via-sky-600 hover:to-red-700">
-                Get started
-              </Button>
-            </SignUpButton>
-          </SignedOut>
-          <SignedIn>
-            <Link
-              href="/dashboard"
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "hidden sm:inline-flex"
-              )}
-            >
-              Dashboard
-            </Link>
-            <UserButton afterSignOutUrl="/" />
-          </SignedIn>
-        </nav>
+        {!isPublicForm && (
+          <nav className="flex items-center gap-3">
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="ghost" className="hidden sm:inline-flex">
+                  Sign in
+                </Button>
+              </SignInButton>
+              <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
+                <Button className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white hover:from-blue-700 hover:via-sky-600 hover:to-red-700">
+                  Get started
+                </Button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <Link
+                href="/dashboard"
+                className={cn(
+                  buttonVariants({ variant: "ghost" }),
+                  "hidden sm:inline-flex"
+                )}
+              >
+                Dashboard
+              </Link>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+          </nav>
+        )}
       </div>
     </header>
   );

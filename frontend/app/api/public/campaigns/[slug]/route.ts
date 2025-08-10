@@ -9,9 +9,11 @@ export async function GET(
     ensureSupabaseConfigured();
     const { data, error } = await supabase
       .from("campaigns")
-      .select("id, title, description, form_schema, share_slug, is_published")
+      .select(
+        "id, title, description, form_schema, share_slug, is_published, published"
+      )
       .eq("share_slug", params.slug)
-      .eq("is_published", true)
+      .or("is_published.eq.true,published.eq.true")
       .single();
     if (error) throw error;
     return NextResponse.json(data);
@@ -19,5 +21,3 @@ export async function GET(
     return NextResponse.json({ error: "campaign not found" }, { status: 404 });
   }
 }
-
-

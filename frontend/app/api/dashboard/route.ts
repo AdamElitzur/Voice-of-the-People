@@ -4,7 +4,8 @@ import { ensureSupabaseConfigured, supabase } from "../_lib/server";
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     ensureSupabaseConfigured();
     const { data: campaigns, error } = await supabase
@@ -32,6 +33,9 @@ export async function GET() {
     }));
     return NextResponse.json(enriched);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "dashboard failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "dashboard failed" },
+      { status: 500 }
+    );
   }
 }

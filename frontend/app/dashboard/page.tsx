@@ -93,8 +93,16 @@ export default function DashboardPage() {
                     <div>
                       <CardTitle className="text-base">{c.title}</CardTitle>
                       <CardDescription>
-                        {new Date(c.created_at).toLocaleString()} ·{" "}
-                        {c.response_count ?? 0} responses
+                        {new Intl.DateTimeFormat("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                          timeZone: "UTC",
+                        }).format(new Date(c.created_at))}{" "}
+                        · {c.response_count ?? 0} responses
                       </CardDescription>
                     </div>
                     <Badge variant={c.is_published ? "default" : "secondary"}>
@@ -122,6 +130,21 @@ export default function DashboardPage() {
                     >
                       Preview
                     </Link>
+                    {c.share_slug && (
+                      <button
+                        type="button"
+                        className={cn(buttonVariants({ variant: "ghost" }))}
+                        onClick={() => {
+                          const url = `${window.location.origin}/f/${c.share_slug}`;
+                          navigator.clipboard
+                            .writeText(url)
+                            .then(() => alert("Share link copied to clipboard"))
+                            .catch(() => window.open(url, "_blank"));
+                        }}
+                      >
+                        Share link
+                      </button>
+                    )}
                   </CardContent>
                 </Card>
               ))}

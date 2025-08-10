@@ -11,13 +11,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GripVertical, Plus, Trash2, Type, ListChecks } from "lucide-react";
+import {
+  GripVertical,
+  Plus,
+  Trash2,
+  Type,
+  ListChecks,
+  IdCard,
+} from "lucide-react";
 // Removed back-to-dashboard link header
 import { SiteHeader } from "@/components/site-header";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 import { ensureAdmin, createCampaign } from "@/app/actions/campaigns";
 
-type QuestionType = "short_text" | "multiple_choice";
+type QuestionType = "short_text" | "multiple_choice" | "contact_info";
 
 type BaseQuestion = {
   id: string;
@@ -37,7 +44,14 @@ type MultipleChoiceQuestion = BaseQuestion & {
   allowMultiple: boolean;
 };
 
-type Question = ShortTextQuestion | MultipleChoiceQuestion;
+type ContactInfoQuestion = BaseQuestion & {
+  type: "contact_info";
+};
+
+type Question =
+  | ShortTextQuestion
+  | MultipleChoiceQuestion
+  | ContactInfoQuestion;
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
@@ -72,6 +86,16 @@ export default function NewCampaignPage() {
         { id: generateId("opt"), label: "Option 2" },
       ],
       allowMultiple: false,
+    };
+    setQuestions((prev) => [...prev, newQuestion]);
+  };
+
+  const addContactInfo = () => {
+    const newQuestion: ContactInfoQuestion = {
+      id: generateId("q"),
+      type: "contact_info",
+      title: "Your contact information",
+      required: false,
     };
     setQuestions((prev) => [...prev, newQuestion]);
   };
@@ -284,6 +308,13 @@ export default function NewCampaignPage() {
                     >
                       <ListChecks className="h-4 w-4" /> Multiple choice
                     </Button>
+                    <Button
+                      onClick={addContactInfo}
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <IdCard className="h-4 w-4" /> Contact info
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -399,6 +430,13 @@ export default function NewCampaignPage() {
                               Allow multiple selections
                             </label>
                           </div>
+                        </div>
+                      )}
+                      {q.type === "contact_info" && (
+                        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                          This question will show fields for name, email, and
+                          phone on the public form. Respondents can leave them
+                          blank unless you mark this question as required.
                         </div>
                       )}
                     </div>

@@ -139,7 +139,10 @@ export default function Home() {
 
       <footer className="border-t border-border">
         <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Voice of the People</p>
+          <p>
+            © <span suppressHydrationWarning>{new Date().getFullYear()}</span>{" "}
+            Voice of the People
+          </p>
           <div className="flex items-center gap-4">
             <Link href="#" className="hover:underline">
               Privacy

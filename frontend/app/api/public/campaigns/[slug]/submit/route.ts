@@ -22,17 +22,55 @@ export async function POST(
 
     const { data: campaign, error: cErr } = await supabase
       .from("campaigns")
-      .select("id, title, description, is_published")
+      .select("id, title, description, is_published, published, form_schema")
       .eq("share_slug", params.slug)
-      .eq("is_published", true)
+      .or("is_published.eq.true,published.eq.true")
       .single();
     if (cErr || !campaign) {
-      return NextResponse.json({ error: "campaign not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "campaign not found" },
+        { status: 404 }
+      );
     }
 
+    // Validate required questions server-side
+    const questions = (campaign as any)?.form_schema?.questions || [];
+    const missing: string[] = [];
+    for (const q of questions) {
+      if (!q?.required) continue;
+      if (q.type === "short_text") {
+        const v = (answers as any)[q.id];
+        if (!v || typeof v !== "string" || !v.trim())
+          missing.push(q.title || q.id);
+      } else if (q.type === "multiple_choice") {
+        const v = (answers as any)[q.id];
+        if (q.allowMultiple) {
+          if (!Array.isArray(v) || v.length === 0)
+            missing.push(q.title || q.id);
+        } else if (!v) {
+          missing.push(q.title || q.id);
+        }
+      } else if (q.type === "contact_info") {
+        const hasAny = Boolean(
+          (answers as any)[`${q.id}:name`] ||
+            (answers as any)[`${q.id}:email`] ||
+            (answers as any)[`${q.id}:phone`]
+        );
+        if (!hasAny) missing.push(q.title || q.id);
+      }
+    }
+    if (missing.length) {
+      return NextResponse.json(
+        { error: `Missing required: ${missing.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    const ua = (req.headers as any).get?.("user-agent") || null;
+    const ip = (req.headers as any).get?.("x-forwarded-for") || null;
     const respondent_meta = {
-      user_agent: null as string | null, // user agent/IP are not directly available in edge/serverless without headers parsing; keep minimal
-      ip: null as string | null,
+      user_agent: ua,
+      ip,
       source,
       respondent,
       consent,
@@ -50,7 +88,9 @@ export async function POST(
       .single();
     if (insErr) throw insErr;
 
-    const text = `${campaign.title || ""}\n${campaign.description || ""}\n\n${flattenAnswersForEmbedding(answers)}`.trim();
+    const text = `${campaign.title || ""}\n${
+      campaign.description || ""
+    }\n\n${flattenAnswersForEmbedding(answers)}`.trim();
     try {
       await upsertResponseEmbedding({
         campaignId: campaign.id,
@@ -64,8 +104,9 @@ export async function POST(
 
     return NextResponse.json(inserted, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "submit failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "submit failed" },
+      { status: 500 }
+    );
   }
 }
-
-

@@ -53,7 +53,9 @@ export async function createCampaign(input: CampaignInsert): Promise<any> {
       form_schema: input.form_schema,
       example_inputs: input.example_inputs ?? null,
       multiple_choice_options: input.multiple_choice_options ?? null,
+      // standardize: write to both columns if schema has either
       is_published: Boolean(input.is_published),
+      published: Boolean(input.is_published),
       share_slug: generateShareSlug(),
       created_by: userId,
     })
@@ -87,6 +89,15 @@ export async function updateCampaign(
   const safe = { ...updates } as any;
   delete safe.id;
   delete safe.created_by;
+  // normalize publish field naming across schemas
+  if (
+    Object.prototype.hasOwnProperty.call(safe, "is_published") ||
+    Object.prototype.hasOwnProperty.call(safe, "published")
+  ) {
+    const next = Boolean(safe.is_published ?? safe.published);
+    safe.is_published = next;
+    safe.published = next;
+  }
   const { data, error } = await supabase
     .from("campaigns")
     .update(safe)
@@ -123,6 +134,8 @@ export async function listDashboardCampaigns(): Promise<any[]> {
   }
   return (campaigns || []).map((c: any) => ({
     ...c,
+    // normalize publish flag for UI consumers
+    is_published: Boolean(c.is_published ?? c.published),
     response_count: countsByCampaign[String(c.id)] || 0,
   }));
 }

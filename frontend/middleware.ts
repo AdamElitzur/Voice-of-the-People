@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/public(.*)",
+  "/f(.*)", // public shareable forms
 ]);
 
 export default clerkMiddleware((auth, req) => {
