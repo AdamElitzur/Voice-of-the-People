@@ -315,28 +315,46 @@ app.get("/api/campaigns/:id", requireAuth(), async (req, res) => {
 });
 
 app.post("/api/newAdmin", requireAuth(), async (req, res) => {
-  const { text } = req.body;
-  const { userId } = getAuth(req);
-  const response = await upsert(text);
-  console.log("[upsert] success:", response);
-  // check if user is in the admi
-  const { data: admins, error: adminsError } = await supabase
-    .from("admins")
-    .select("*")
-    .eq("clerk_user_id", userId)
-    .single();
-  if (adminsError) throw adminsError;
-  if (admins.length === 0) {
-    // create admin
-    const { data: admin, error: adminError } = await supabase
+  try {
+    if (!ensureSupabase(res)) return;
+    const { text } = req.body || {};
+    const { userId } = getAuth(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (typeof upsert === "function" && text) {
+      try {
+        const response = await upsert(text);
+        console.log("[upsert] success:", response);
+      } catch (e) {
+        console.warn("[upsert] failed:", e.message);
+      }
+    }
+
+    const { data: existing, error: selectError } = await supabase
       .from("admins")
-      .insert({
-        clerk_user_id: userId,
-      })
       .select("*")
-      .single();
+      .eq("clerk_user_id", userId)
+      .maybeSingle();
+    if (selectError) throw selectError;
+
+    if (!existing) {
+      const { data: inserted, error: insertError } = await supabase
+        .from("admins")
+        .insert({ clerk_user_id: userId })
+        .select("*")
+        .single();
+      if (insertError) throw insertError;
+      return res.status(201).json(inserted);
+    }
+
+    return res.status(200).json(existing);
+  } catch (err) {
+    console.error("[/api/newAdmin] error", err);
+    return res.status(500).json({ error: err.message || "newAdmin failed" });
   }
-  res.status(200).json({ success: true });
 });
 
 // PATCH /api/campaigns/:id - update campaign (owner only)
