@@ -88,7 +88,7 @@ export default function CampaignDataPage() {
     const [loading, setLoading] = useState<boolean>(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
-    const [prompt, setPrompt] = useState<string>('Summarize responses and plot responses per day');
+    const [prompt, setPrompt] = useState<string>('');
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
 
