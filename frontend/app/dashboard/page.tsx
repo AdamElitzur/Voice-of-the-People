@@ -120,6 +120,12 @@ export default function DashboardPage() {
                       Edit
                     </Link>
                     <Link
+                      href={`/campaigns/${c.id}/data`}
+                      className={cn(buttonVariants({ variant: "default" }))}
+                    >
+                      Data & Charts
+                    </Link>
+                    <Link
                       href={`/campaigns/preview?data=${encodeURIComponent(
                         btoa(
                           JSON.stringify({
