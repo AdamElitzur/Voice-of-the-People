@@ -56,13 +56,13 @@ export default function PublicFormPage() {
         const res = await fetch(`/api/public/campaigns/${slug}`, {
           cache: "no-store",
         });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error || "Campaign not found");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.notFound) {
+          setError(data?.message || "Campaign is not available");
+        } else {
+          setTitle(data.title || "");
+          setQuestions(data.form_schema?.questions || []);
         }
-        const data = await res.json();
-        setTitle(data.title || "");
-        setQuestions(data.form_schema?.questions || []);
       } catch (e) {
         console.error(e);
         setError((e as Error).message);
@@ -115,11 +115,12 @@ export default function PublicFormPage() {
         body: JSON.stringify({ answers }),
         cache: "no-store",
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Failed to submit response");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.ok === false) {
+        alert(data?.message || "Failed to submit response");
+      } else {
+        setSubmitted(true);
       }
-      setSubmitted(true);
     } catch (e) {
       console.error(e);
       alert((e as Error).message);

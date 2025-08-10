@@ -15,9 +15,17 @@ export async function GET(
       .eq("share_slug", params.slug)
       .or("is_published.eq.true,published.eq.true")
       .single();
-    if (error) throw error;
-    return NextResponse.json(data);
+    if (error) {
+      return NextResponse.json(
+        { notFound: true, message: "Campaign is not available" },
+        { status: 200 }
+      );
+    }
+    return NextResponse.json(data, { status: 200 });
   } catch (err: any) {
-    return NextResponse.json({ error: "campaign not found" }, { status: 404 });
+    return NextResponse.json(
+      { notFound: true, message: "Campaign is not available" },
+      { status: 200 }
+    );
   }
 }
