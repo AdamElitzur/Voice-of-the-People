@@ -1,5 +1,5 @@
 "use client";
-import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
+import { SignedIn, SignedOut, RedirectToSignIn, useAuth } from "@clerk/nextjs";
 import { SiteHeader } from "@/components/site-header";
 import {
   Card,
@@ -9,11 +9,33 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
+import axios from "axios";
 
 export default function DashboardPage() {
   // Data integration pending: will load campaigns/responses from API/database.
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await axios.post(
+          "/api/newAdmin",
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log(res.data);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchCampaigns();
+  }, [getToken]);
+
   return (
     <>
       <SiteHeader />

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET() {
-  const { getToken } = auth();
+  const { getToken } = await auth();
   const token = await getToken();
 
   const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/protected`, {
