@@ -46,7 +46,7 @@ export default function Home() {
               <SignedOut>
                 <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
                   <Button className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white hover:from-blue-700 hover:via-sky-600 hover:to-red-700 transition-shadow hover:shadow-lg">
-                    Start a debate
+                    Start a campaign
                   </Button>
                 </SignUpButton>
               </SignedOut>
@@ -58,7 +58,7 @@ export default function Home() {
                     "bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white hover:from-blue-700 hover:via-sky-600 hover:to-red-700 transition-shadow hover:shadow-lg"
                   )}
                 >
-                  Start a debate
+                  Start a campaign
                 </Link>
               </SignedIn>
             </div>

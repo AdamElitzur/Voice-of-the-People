@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ export default function NewCampaignPage() {
   const [title, setTitle] = useState<string>("Untitled campaign");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
+  const router = useRouter();
 
   const addShortText = () => {
     const newQuestion: ShortTextQuestion = {
@@ -141,6 +143,13 @@ export default function NewCampaignPage() {
     window.open(`/campaigns/preview?data=${encoded}`, "_blank");
   };
 
+  const persistCampaign = (status: "draft" | "published") => {
+    // TODO: Integrate API/database persistence. For now, just navigate back.
+    if (status === "published") {
+      router.push("/dashboard");
+    }
+  };
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div className="flex items-center justify-between mb-6">
@@ -150,8 +159,8 @@ export default function NewCampaignPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={openPreview}>Preview</Button>
-          <Button variant="outline">Save draft</Button>
-          <Button className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white">Publish</Button>
+          <Button variant="outline" onClick={() => persistCampaign("draft")}>Save draft</Button>
+          <Button onClick={() => persistCampaign("published")} className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white">Publish</Button>
         </div>
       </div>
 
