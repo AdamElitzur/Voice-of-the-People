@@ -48,6 +48,7 @@ export default function NewCampaignPage() {
   const [title, setTitle] = useState<string>("Untitled campaign");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const router = useRouter();
 
   const addShortText = () => {
@@ -173,10 +174,47 @@ export default function NewCampaignPage() {
     window.open(`/campaigns/preview?data=${encoded}`, "_blank");
   };
 
-  const persistCampaign = (status: "draft" | "published") => {
-    // TODO: Integrate API/database persistence. For now, just navigate back.
-    if (status === "published") {
+  const persistCampaign = async (status: "draft" | "published") => {
+    try {
+      setIsSaving(true);
+      // Ensure admin user exists (needed for FK on campaigns.created_by)
+      try {
+        await fetch("/api/newAdmin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          cache: "no-store",
+        });
+      } catch {}
+
+      const body = {
+        title: title?.trim() || "Untitled campaign",
+        description: null,
+        form_schema: {
+          version: 1,
+          questions,
+        },
+        example_inputs: null,
+        multiple_choice_options: null,
+        is_published: status === "published",
+      };
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to save campaign");
+      }
+      // Optionally: const created = await res.json();
       router.push("/dashboard");
+    } catch (e) {
+      console.error(e);
+      alert((e as Error).message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -209,20 +247,26 @@ export default function NewCampaignPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={openPreview}>
+              <Button
+                variant="outline"
+                onClick={openPreview}
+                disabled={isSaving}
+              >
                 Preview
               </Button>
               <Button
                 variant="outline"
                 onClick={() => persistCampaign("draft")}
+                disabled={isSaving}
               >
-                Save draft
+                {isSaving ? "Saving..." : "Save draft"}
               </Button>
               <Button
                 onClick={() => persistCampaign("published")}
+                disabled={isSaving}
                 className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white"
               >
-                Publish
+                {isSaving ? "Publishing..." : "Publish"}
               </Button>
             </div>
           </div>
