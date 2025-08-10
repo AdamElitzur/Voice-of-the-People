@@ -12,9 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GripVertical, Plus, Trash2, Type, ListChecks } from "lucide-react";
-import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+// Removed back-to-dashboard link header
 import { SiteHeader } from "@/components/site-header";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 
@@ -226,17 +224,6 @@ export default function NewCampaignPage() {
           <RedirectToSignIn redirectUrl="/campaigns/new" />
         </SignedOut>
         <SignedIn>
-          <header className="mb-6 flex items-center justify-between">
-            <Link
-              href="/dashboard"
-              className={cn(buttonVariants({ variant: "ghost" }))}
-            >
-              Back to dashboard
-            </Link>
-            <div className="text-sm text-muted-foreground">
-              Campaign builder
-            </div>
-          </header>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">

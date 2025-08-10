@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -10,12 +11,17 @@ import {
   SignUpButton,
   UserButton,
 } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 
 export function SiteHeader() {
+  const pathname = usePathname();
+  const { isSignedIn } = useAuth();
+  const isLanding = pathname === "/";
+  const logoHref = isSignedIn && !isLanding ? "/dashboard" : "/";
   return (
     <header className="sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border">
       <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={logoHref} className="flex items-center gap-2">
           <span className="inline-block h-2 w-2 rounded-full bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 animate-pulse" />
           <span className="text-lg font-semibold tracking-tight">
             Voice of the People

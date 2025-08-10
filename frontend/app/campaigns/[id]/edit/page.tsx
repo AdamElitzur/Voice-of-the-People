@@ -12,9 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GripVertical, Trash2, Type, ListChecks } from "lucide-react";
-import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+// Back-to-dashboard header removed per request; clean imports
 import { SiteHeader } from "@/components/site-header";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 
@@ -231,21 +229,23 @@ export default function EditCampaignPage() {
     }
   };
 
-  const publishNow = async () => {
+  const togglePublish = async () => {
     try {
       setIsSaving(true);
+      const next = !published;
       const res = await fetch(`/api/campaigns/${campaignId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_published: true }),
+        body: JSON.stringify({ is_published: next }),
         cache: "no-store",
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Failed to publish");
+        throw new Error(
+          data?.error || `Failed to ${next ? "publish" : "unpublish"}`
+        );
       }
-      setPublished(true);
-      router.push("/dashboard");
+      setPublished(next);
     } catch (e) {
       console.error(e);
       alert((e as Error).message);
@@ -262,15 +262,7 @@ export default function EditCampaignPage() {
           <RedirectToSignIn redirectUrl={`/campaigns/${campaignId}/edit`} />
         </SignedOut>
         <SignedIn>
-          <header className="mb-6 flex items-center justify-between">
-            <Link
-              href="/dashboard"
-              className={cn(buttonVariants({ variant: "ghost" }))}
-            >
-              Back to dashboard
-            </Link>
-            <div className="text-sm text-muted-foreground">Edit campaign</div>
-          </header>
+          {/* Header row removed */}
 
           {loading ? (
             <Card>
@@ -312,15 +304,23 @@ export default function EditCampaignPage() {
                   >
                     {isSaving ? "Saving…" : "Save changes"}
                   </Button>
-                  {!published && (
-                    <Button
-                      onClick={publishNow}
-                      disabled={isSaving}
-                      className="bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white"
-                    >
-                      {isSaving ? "Publishing…" : "Publish"}
-                    </Button>
-                  )}
+                  <Button
+                    onClick={togglePublish}
+                    disabled={isSaving}
+                    className={
+                      published
+                        ? ""
+                        : "bg-gradient-to-r from-blue-600 via-sky-500 to-red-600 text-white"
+                    }
+                  >
+                    {isSaving
+                      ? published
+                        ? "Unpublishing…"
+                        : "Publishing…"
+                      : published
+                      ? "Unpublish"
+                      : "Publish"}
+                  </Button>
                 </div>
               </div>
 
