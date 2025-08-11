@@ -1004,6 +1004,123 @@ function ChatWindow({
     scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" });
   }, [msgs, open]);
 
+  useEffect(() => {
+    if (!open) {
+      setShowTrainingData(new Set());
+    }
+  }, [open]);
+
+  const toggleTrainingData = (messageIndex: number) => {
+    const newShowTraining = new Set(showTrainingData);
+    if (newShowTraining.has(messageIndex)) {
+      newShowTraining.delete(messageIndex);
+    } else {
+      newShowTraining.add(messageIndex);
+    }
+    setShowTrainingData(newShowTraining);
+  };
+
+  const renderMessageContent = (content: string, messageIndex: number) => {
+    // Parse markdown-like content and render it properly
+    const lines = content.split("\n");
+
+    // Count sentences (rough approximation: periods, exclamation marks, question marks)
+    const sentenceCount = (content.match(/[.!?]+/g) || []).length;
+    const isExpanded = expandedMessages.has(messageIndex);
+
+    // If content is short, show everything
+    if (sentenceCount <= 5) {
+      return (
+        <div className="whitespace-pre-wrap">
+          {lines.map((line, lineIndex) => {
+            // Handle bold text (**text**)
+            if (line.includes("**")) {
+              const parts = line.split(/(\*\*.*?\*\*)/g);
+              return (
+                <div key={lineIndex}>
+                  {parts.map((part, partIndex) => {
+                    if (part.startsWith("**") && part.endsWith("**")) {
+                      return (
+                        <strong key={partIndex}>{part.slice(2, -2)}</strong>
+                      );
+                    }
+                    return part;
+                  })}
+                </div>
+              );
+            }
+            return <div key={lineIndex}>{line}</div>;
+          })}
+        </div>
+      );
+    }
+
+    // For longer content, show truncated version with expand button
+    const truncatedContent = lines.slice(0, 3).join("\n") + "...";
+
+    return (
+      <div>
+        <div className="whitespace-pre-wrap">
+          {isExpanded
+            ? // Show full content
+              lines.map((line, lineIndex) => {
+                if (line.includes("**")) {
+                  const parts = line.split(/(\*\*.*?\*\*)/g);
+                  return (
+                    <div key={lineIndex}>
+                      {parts.map((part, partIndex) => {
+                        if (part.startsWith("**") && part.endsWith("**")) {
+                          return (
+                            <strong key={partIndex}>{part.slice(2, -2)}</strong>
+                          );
+                        }
+                        return part;
+                      })}
+                    </div>
+                  );
+                }
+                return <div key={lineIndex}>{line}</div>;
+              })
+            : // Show truncated content
+              lines.slice(0, 3).map((line, lineIndex) => {
+                if (line.includes("**")) {
+                  const parts = line.split(/(\*\*.*?\*\*)/g);
+                  return (
+                    <div key={lineIndex}>
+                      {parts.map((part, partIndex) => {
+                        if (part.startsWith("**") && part.endsWith("**")) {
+                          return (
+                            <strong key={partIndex}>{part.slice(2, -2)}</strong>
+                          );
+                        }
+                        return part;
+                      })}
+                    </div>
+                  );
+                }
+                return <div key={lineIndex}>{line}</div>;
+              })}
+        </div>
+        {sentenceCount > 5 && (
+          <button
+            onClick={() => {
+              const newExpanded = new Set(expandedMessages);
+              if (newExpanded.has(messageIndex)) {
+                newExpanded.delete(messageIndex);
+              } else {
+                newExpanded.add(messageIndex);
+              }
+              setExpandedMessages(newExpanded);
+            }}
+            className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            {isExpanded ? "Show Less" : "Show More"}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   async function callAskAPI(question: string) {
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/ask`, {
@@ -1585,10 +1702,7 @@ export default function CampaignAnalyticsPage() {
                     <div className="hidden md:flex items-center gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4" /> {kpis.n.toLocaleString()}{" "}
-                        in view
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MapIcon className="w-4 h-4" /> Regions
+                        responses
                       </div>
                     </div>
                   </div>
@@ -1598,38 +1712,10 @@ export default function CampaignAnalyticsPage() {
                     <Card className="rounded-2xl border border-gray-200">
                       <CardContent className="p-4">
                         <div className="text-xs text-gray-500">
-                          Total in view
+                          Total number of responses
                         </div>
                         <div className="text-2xl font-semibold">
                           {kpis.n.toLocaleString()}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="rounded-2xl border border-gray-200">
-                      <CardContent className="p-4">
-                        <div className="text-xs text-gray-500">
-                          Approve (Q1) ≥ 4
-                        </div>
-                        <div className="text-2xl font-semibold text-blue-700">
-                          {kpis.approve}%
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="rounded-2xl border border-gray-200">
-                      <CardContent className="p-4">
-                        <div className="text-xs text-gray-500">
-                          Likely to Vote (Q2) ≥ 4
-                        </div>
-                        <div className="text-2xl font-semibold text-emerald-700">
-                          {kpis.likely}%
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="rounded-2xl border border-gray-200">
-                      <CardContent className="p-4">
-                        <div className="text-xs text-gray-500">Top Issue</div>
-                        <div className="text-2xl font-semibold text-fuchsia-700">
-                          {kpis.topIssue}
                         </div>
                       </CardContent>
                     </Card>
