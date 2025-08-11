@@ -1004,66 +1004,6 @@ function ChatWindow({
     scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" });
   }, [msgs, open]);
 
-  useEffect(() => {
-    if (!open) {
-      setExpandedMessages(new Set());
-      setShowTrainingData(new Set());
-    }
-  }, [open]);
-
-  const toggleMessageExpansion = (messageIndex: number) => {
-    const newExpanded = new Set(expandedMessages);
-    if (newExpanded.has(messageIndex)) {
-      newExpanded.delete(messageIndex);
-    } else {
-      newExpanded.add(messageIndex);
-    }
-    setExpandedMessages(newExpanded);
-  };
-
-  const toggleTrainingData = (messageIndex: number) => {
-    const newShowTraining = new Set(showTrainingData);
-    if (newShowTraining.has(messageIndex)) {
-      newShowTraining.delete(messageIndex);
-    } else {
-      newShowTraining.add(messageIndex);
-    }
-    setShowTrainingData(newShowTraining);
-  };
-
-  const renderMessageContent = (content: string, messageIndex: number) => {
-    const isExpanded = expandedMessages.has(messageIndex);
-    const shouldTruncate = content.length > 300;
-
-    if (!shouldTruncate || isExpanded) {
-      return (
-        <div>
-          {content}
-          {shouldTruncate && isExpanded && (
-            <button
-              onClick={() => toggleMessageExpansion(messageIndex)}
-              className="text-blue-600 hover:text-blue-800 text-xs ml-2 underline"
-            >
-              Show less
-            </button>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div>
-        {content.substring(0, 300)}...
-        <button
-          onClick={() => toggleMessageExpansion(messageIndex)}
-          className="text-blue-600 hover:text-blue-800 text-xs ml-2 underline"
-        >
-          Show more
-        </button>
-      </div>
-    );
-  };
-
   async function callAskAPI(question: string) {
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/ask`, {
@@ -1076,7 +1016,24 @@ function ChatWindow({
 
       if (res.ok) {
         const result = await res.json();
-        const messageContent = result.answer || "No response";
+        let messageContent = result.answer || "No response";
+
+        // Add the top 10% response data to the message
+        if (result.responseData && result.responseData.length > 0) {
+          messageContent += `\n\n**Top ${result.used} responses (${Math.round(
+            (result.used / result.totalResponses) * 100
+          )}% of total):**\n`;
+          result.responseData.forEach((response: any, index: number) => {
+            const answers = Object.entries(response.answers || {})
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(", ");
+            messageContent += `\n${index + 1}. **Response ${
+              response.id
+            }** (${new Date(
+              response.created_at
+            ).toLocaleDateString()})\n   ${answers}`;
+          });
+        }
 
         const newMessage: any = {
           role: "assistant",
@@ -1312,7 +1269,7 @@ export default function CampaignAnalyticsPage() {
   const [chatOpen, setChatOpen] = useState(false);
 
   // Analyzer-driven Chart.js (proxy to /api/campaigns/[id]/analyze → /api/chat-charts)
-  const [useAnalyzer, setUseAnalyzer] = useState<boolean>(false);
+  const [useAnalyzer, setUseAnalyzer] = useState<boolean>(true);
   const [analyzerLimit, setAnalyzerLimit] = useState<string>("");
   const [analyzerUrl, setAnalyzerUrl] = useState<string>("");
   const [analyzerPrompt, setAnalyzerPrompt] = useState<string>(
