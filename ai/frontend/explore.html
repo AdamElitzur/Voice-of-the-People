@@ -1,0 +1,169 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Political Leaning Explorer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; color: #222; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .col { flex: 1 1 480px; min-width: 360px; }
+    textarea { width: 100%; height: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    input, button, select { padding: 8px; font-size: 14px; }
+    .panel { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+    .small { color: #666; font-size: 12px; }
+    .flex { display: flex; gap: 12px; align-items: center; }
+    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+    #details { white-space: pre-wrap; font-size: 13px; }
+    canvas { background: #fff; border: 1px solid #eee; border-radius: 6px; }
+  </style>
+  <script>
+    const COLORS = { left: '#4575b4', center: '#888888', right: '#d73027' };
+
+    function labelColor(label) {
+      return COLORS[label] || '#666';
+    }
+
+    function truncate(str, n=140) {
+      if (!str) return '';
+      return str.length > n ? str.slice(0, n) + '…' : str;
+    }
+
+    async function analyze() {
+      const baseUrl = document.getElementById('server').value.replace(/\/$/, '');
+      let inputText = document.getElementById('input').value.trim();
+      if (!inputText) { alert('Paste a JSON array of {id, question, answer}'); return; }
+      let payload;
+      try { payload = JSON.parse(inputText); } catch (e) { alert('Invalid JSON'); return; }
+      try {
+        const res = await fetch(baseUrl + '/analyze', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        renderAll(data);
+      } catch (e) {
+        console.error(e);
+        alert('Analyze failed: ' + e.message);
+      }
+    }
+
+    let scatterChart, barChart;
+
+    function renderAll(resp) {
+      const items = resp.items || [];
+      const aggs = resp.aggregates || {};
+      const availableProjs = Object.keys((aggs.projections || {})).filter(k => (aggs.projections||{})[k].coords);
+      const select = document.getElementById('projection');
+      select.innerHTML = '';
+      (availableProjs.length ? availableProjs : ['pca']).forEach(k => {
+        const opt = document.createElement('option'); opt.value = k; opt.textContent = k.toUpperCase(); select.appendChild(opt);
+      });
+      select.onchange = () => renderScatter(items, select.value);
+      renderScatter(items, select.value || (availableProjs[0] || 'pca'));
+      renderBars(aggs.counts_by_pred_label || {});
+      document.getElementById('details').textContent = 'Loaded ' + items.length + ' items.';
+    }
+
+    function buildDatasets(items, projKey) {
+      const grouped = { left: [], center: [], right: [] };
+      for (const it of items) {
+        const proj = (it.projections || {})[projKey] || (it.projections || {}).pca;
+        if (!proj) continue;
+        const [x,y] = proj;
+        const point = {
+          x, y, r: 3 + Math.max(0, (it.extremeness || 0))*6,
+          id: it.id, label: it.pred_label, question: it.question, answer: it.answer,
+          probs: it.probs, ideology_score: it.ideology_score
+        };
+        const key = (it.pred_label || 'center');
+        (grouped[key] || (grouped[key]=[])).push(point);
+      }
+      return Object.keys(grouped).map(lbl => ({
+        label: lbl,
+        data: grouped[lbl],
+        pointBackgroundColor: labelColor(lbl),
+        pointBorderColor: 'rgba(0,0,0,0.0)'
+      }));
+    }
+
+    function renderScatter(items, projKey) {
+      const ctx = document.getElementById('scatter').getContext('2d');
+      const datasets = buildDatasets(items, projKey);
+      if (scatterChart) scatterChart.destroy();
+      scatterChart = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const p = ctx.raw || {}; const pr = p.probs || {};
+                  return [
+                    `${p.id} · ${p.label}  (L:${(pr.left*100||0).toFixed(1)} C:${(pr.center*100||0).toFixed(1)} R:${(pr.right*100||0).toFixed(1)})`,
+                    'Q: ' + truncate(p.question, 80),
+                    'A: ' + truncate(p.answer, 120)
+                  ];
+                }
+              }
+            }
+          },
+          scales: { x: { title: { display: true, text: projKey.toUpperCase() + ' X' } }, y: { title: { display: true, text: projKey.toUpperCase() + ' Y' } } }
+        }
+      });
+    }
+
+    function renderBars(counts) {
+      const ctx = document.getElementById('bars').getContext('2d');
+      if (barChart) barChart.destroy();
+      const labels = ['left','center','right'];
+      barChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Count',
+            backgroundColor: labels.map(labelColor),
+            data: labels.map(l => counts[l] || 0)
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      });
+    }
+  </script>
+</head>
+<body>
+  <h2>Political Leaning Explorer</h2>
+  <div class="panel">
+    <div class="flex" style="margin-bottom: 8px;">
+      <label for="server">Server URL:</label>
+      <input id="server" value="http://127.0.0.1:8000" style="min-width: 260px;" />
+      <label for="projection">Projection:</label>
+      <select id="projection"></select>
+      <button onclick="analyze()">Analyze</button>
+    </div>
+    <div class="small">Paste a JSON array of objects like: [{"id":"1","question":"Q?","answer":"A..."}, ...]</div>
+    <textarea id="input" placeholder='[ {"id":"1","question":"Should platforms remove harmful political speech?","answer":"Remove threats, but be careful with nuance."} ]'></textarea>
+  </div>
+
+  <div class="row" style="margin-top: 16px;">
+    <div class="col panel" style="height: 460px;">
+      <canvas id="scatter"></canvas>
+    </div>
+    <div class="col panel" style="height: 460px;">
+      <canvas id="bars"></canvas>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top: 16px;">
+    <strong>Details</strong>
+    <div id="details" class="small"></div>
+  </div>
+</body>
+</html>
+
+

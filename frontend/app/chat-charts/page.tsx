@@ -295,7 +295,7 @@ export default function ChatChartsPage() {
                                         style={inputStyle}
                                         value={analyzerUrl}
                                         onChange={(e) => setAnalyzerUrl(e.target.value)}
-                                        placeholder="default: http://127.0.0.1:8000/analyze"
+                                        placeholder="default: https://7b5e40bf3b2a.ngrok-free.app/analyze"
                                     />
                                 </div>
                             </div>
