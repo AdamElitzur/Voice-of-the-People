@@ -7,10 +7,14 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     ensureSupabaseConfigured();
-    const awaited = 'then' in (ctx.params as any) ? await (ctx.params as Promise<{ id: string }>) : (ctx.params as { id: string });
+    const awaited =
+      "then" in (ctx.params as any)
+        ? await (ctx.params as Promise<{ id: string }>)
+        : (ctx.params as { id: string });
     const { id } = awaited;
     const { error: campErr } = await supabase
       .from("campaigns")
@@ -28,8 +32,9 @@ export async function GET(
     const total = responses?.length || 0;
     return NextResponse.json({ total });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "metrics failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "metrics failed" },
+      { status: 500 }
+    );
   }
 }
-
-

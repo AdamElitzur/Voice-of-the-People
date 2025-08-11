@@ -1,22 +1,34 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { openai, pineconeIndex, supabase, ensureSupabaseConfigured } from "../../../_lib/server";
+import {
+  openai,
+  pineconeIndex,
+  supabase,
+  ensureSupabaseConfigured,
+} from "../../../_lib/server";
 
 export async function POST(
   req: Request,
   { params }: { params: { id: string } }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     ensureSupabaseConfigured();
     if (!openai || !pineconeIndex) {
-      return NextResponse.json({ error: "Server missing OpenAI or Pinecone configuration" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Server missing OpenAI or Pinecone configuration" },
+        { status: 500 }
+      );
     }
     const body = await req.json().catch(() => ({}));
     const { question, topK = 20 } = body || {};
     if (!question || typeof question !== "string") {
-      return NextResponse.json({ error: "question is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "question is required" },
+        { status: 400 }
+      );
     }
     const { error: campErr } = await supabase
       .from("campaigns")
@@ -46,18 +58,22 @@ export async function POST(
     const contextText = contexts.filter(Boolean).slice(0, 50).join("\n---\n");
     const messages = [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Question: ${question}\n\nData:\n${contextText}` },
+      {
+        role: "user",
+        content: `Question: ${question}\n\nData:\n${contextText}`,
+      },
     ] as any;
     const chat = await (openai as any).chat.completions.create({
-      model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+      model: process.env.OPENAI_CHAT_MODEL || "gpt-4.1",
       messages,
       temperature: 0.2,
     });
     const answer = chat.choices?.[0]?.message?.content || "";
     return NextResponse.json({ answer, used: contexts.length });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "ask failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "ask failed" },
+      { status: 500 }
+    );
   }
 }
-
-

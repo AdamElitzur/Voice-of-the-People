@@ -16,7 +16,27 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Voice of the People",
-  description: "A civic platform for democratic debate and real-time sentiment.",
+  description:
+    "A civic platform for democratic debate and real-time sentiment.",
+  icons: {
+    icon: [
+      {
+        url: "/favicon.svg",
+        type: "image/svg+xml",
+      },
+      {
+        url: "/favicon.ico",
+        sizes: "32x32",
+        type: "image/x-icon",
+      },
+    ],
+    apple: [
+      {
+        url: "/apple-touch-icon.png",
+        sizes: "180x180",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -27,7 +47,18 @@ export default function RootLayout({
   return (
     <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
       <html lang="en">
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <head>
+          <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+          <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2" />
+          <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href="/favicon.svg?v=2"
+          />
+        </head>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        >
           <ToastProvider>{children}</ToastProvider>
         </body>
       </html>
