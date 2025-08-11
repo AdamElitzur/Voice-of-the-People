@@ -85,6 +85,10 @@ export default function ChatChartsPage() {
     const [payload, setPayload] = useState<ChartPayload | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [useCampaignAnalyzer, setUseCampaignAnalyzer] = useState<boolean>(false);
+    const [campaignId, setCampaignId] = useState<string>('');
+    const [limitResponses, setLimitResponses] = useState<string>('');
+    const [analyzerUrl, setAnalyzerUrl] = useState<string>('');
 
     // Example data users can tweak; in real use pass any JSON
     const [dataJson, setDataJson] = useState(
@@ -102,13 +106,38 @@ export default function ChatChartsPage() {
         setIsLoading(true);
         setError(null);
         try {
+            // If using Supabase -> Analyzer pipeline, fetch analyzer result first
+            let dataForChart: any = null;
+            if (useCampaignAnalyzer) {
+                if (!campaignId) {
+                    throw new Error('Campaign ID is required when using analyzer');
+                }
+                const aRes = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        analyzerUrl: analyzerUrl || undefined,
+                        limitResponses: limitResponses ? Number(limitResponses) : undefined,
+                    }),
+                });
+                if (!aRes.ok) {
+                    const err = await aRes.json().catch(() => ({}));
+                    throw new Error(err?.error || 'Analyzer request failed');
+                }
+                const aJson = await aRes.json();
+                dataForChart = aJson?.analyzer ?? null;
+                if (!dataForChart) {
+                    throw new Error('Analyzer returned no data');
+                }
+            }
+
             const res = await fetch('/api/chat-charts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     messages: [{ role: 'user', content: input }],
                     chartType: chartType || undefined,
-                    data: JSON.parse(dataJson || 'null'),
+                    data: useCampaignAnalyzer ? dataForChart : JSON.parse(dataJson || 'null'),
                 }),
             });
             if (!res.ok) {
@@ -122,7 +151,7 @@ export default function ChatChartsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [input, chartType, dataJson]);
+    }, [input, chartType, dataJson, useCampaignAnalyzer, campaignId, limitResponses, analyzerUrl]);
 
     const cardStyle: React.CSSProperties = {
         width: '100%',
@@ -211,6 +240,49 @@ export default function ChatChartsPage() {
                             placeholder="e.g., Compare signups by source in a doughnut"
                         />
                     </div>
+                    <div>
+                        <label style={labelStyle}>Use Supabase Analyzer</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <input
+                                type="checkbox"
+                                checked={useCampaignAnalyzer}
+                                onChange={(e) => setUseCampaignAnalyzer(e.target.checked)}
+                                style={{ width: 18, height: 18 }}
+                            />
+                            <span style={{ fontSize: 13, color: '#9ca3af' }}>Pull campaign responses → format → send to analyzer, then chart that output</span>
+                        </div>
+                        {useCampaignAnalyzer && (
+                            <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                    <label style={labelStyle}>Campaign ID</label>
+                                    <input
+                                        style={inputStyle}
+                                        value={campaignId}
+                                        onChange={(e) => setCampaignId(e.target.value)}
+                                        placeholder="e.g., 123"
+                                    />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Limit Responses (optional)</label>
+                                    <input
+                                        style={inputStyle}
+                                        value={limitResponses}
+                                        onChange={(e) => setLimitResponses(e.target.value.replace(/[^0-9]/g, ''))}
+                                        placeholder="e.g., 200"
+                                    />
+                                </div>
+                                <div style={{ gridColumn: '1 / span 2' }}>
+                                    <label style={labelStyle}>Analyzer URL (optional)</label>
+                                    <input
+                                        style={inputStyle}
+                                        value={analyzerUrl}
+                                        onChange={(e) => setAnalyzerUrl(e.target.value)}
+                                        placeholder="default: http://127.0.0.1:8000/analyze"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div style={rowStyle}>
                         <div>
                             <label style={labelStyle}>Data JSON</label>
@@ -218,7 +290,13 @@ export default function ChatChartsPage() {
                                 style={{ ...inputStyle, minHeight: 160, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}
                                 value={dataJson}
                                 onChange={(e) => setDataJson(e.target.value)}
+                                disabled={useCampaignAnalyzer}
                             />
+                            {useCampaignAnalyzer && (
+                                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 6 }}>
+                                    Data JSON is disabled because analyzer output will be used as the dataset.
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label style={labelStyle}>Preferred Chart Type</label>
