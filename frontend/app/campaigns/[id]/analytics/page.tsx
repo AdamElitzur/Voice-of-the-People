@@ -743,9 +743,7 @@ function answerQuestion(rows: ViewRow[], text: string): string {
       "top issue",
     ])
   ) {
-    return `In view: ${metrics.n.toLocaleString()} responses. Approval ≥4: ${
-      metrics.approve
-    }%. Likely-to-vote ≥4: ${metrics.likely}%. Top issue: ${metrics.topIssue}.`;
+    return `In view: ${metrics.n.toLocaleString()} responses.`;
   }
   const groupKey = ["party", "age", "gender", "region", "issue"].find((k) =>
     cmd.includes("by " + k)
@@ -982,14 +980,89 @@ function ChatWindow({
 }) {
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<
-    { role: "user" | "assistant"; content: string; chart?: ChartPayload }[]
+    {
+      role: "user" | "assistant";
+      content: string;
+      chart?: ChartPayload;
+      contextData?: string;
+      responseStats?: {
+        used: number;
+        totalResponses: number;
+      };
+    }[]
   >([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [expandedMessages, setExpandedMessages] = useState<Set<number>>(
+    new Set()
+  );
+  const [showTrainingData, setShowTrainingData] = useState<Set<number>>(
+    new Set()
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" });
   }, [msgs, open]);
+
+  useEffect(() => {
+    if (!open) {
+      setExpandedMessages(new Set());
+      setShowTrainingData(new Set());
+    }
+  }, [open]);
+
+  const toggleMessageExpansion = (messageIndex: number) => {
+    const newExpanded = new Set(expandedMessages);
+    if (newExpanded.has(messageIndex)) {
+      newExpanded.delete(messageIndex);
+    } else {
+      newExpanded.add(messageIndex);
+    }
+    setExpandedMessages(newExpanded);
+  };
+
+  const toggleTrainingData = (messageIndex: number) => {
+    const newShowTraining = new Set(showTrainingData);
+    if (newShowTraining.has(messageIndex)) {
+      newShowTraining.delete(messageIndex);
+    } else {
+      newShowTraining.add(messageIndex);
+    }
+    setShowTrainingData(newShowTraining);
+  };
+
+  const renderMessageContent = (content: string, messageIndex: number) => {
+    const isExpanded = expandedMessages.has(messageIndex);
+    const shouldTruncate = content.length > 300;
+
+    if (!shouldTruncate || isExpanded) {
+      return (
+        <div>
+          {content}
+          {shouldTruncate && isExpanded && (
+            <button
+              onClick={() => toggleMessageExpansion(messageIndex)}
+              className="text-blue-600 hover:text-blue-800 text-xs ml-2 underline"
+            >
+              Show less
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        {content.substring(0, 300)}...
+        <button
+          onClick={() => toggleMessageExpansion(messageIndex)}
+          className="text-blue-600 hover:text-blue-800 text-xs ml-2 underline"
+        >
+          Show more
+        </button>
+      </div>
+    );
+  };
 
   async function callAskAPI(question: string) {
     try {
@@ -1003,20 +1076,16 @@ function ChatWindow({
 
       if (res.ok) {
         const result = await res.json();
-        let messageContent = result.answer || "No response";
-
-        // Add the formatted question-answer data used in the analysis
-        if (result.contextData) {
-          messageContent += `\n\n**Training data used (${
-            result.used
-          } responses, ${Math.round(
-            (result.used / result.totalResponses) * 100
-          )}% of total):**\n${result.contextData}`;
-        }
+        const messageContent = result.answer || "No response";
 
         const newMessage: any = {
           role: "assistant",
           content: messageContent,
+          contextData: result.contextData, // Store context data separately
+          responseStats: {
+            used: result.used,
+            totalResponses: result.totalResponses,
+          },
         };
 
         // If there's a graphic, create a chart payload
@@ -1140,7 +1209,7 @@ function ChatWindow({
                         : "bg-gray-50 border border-gray-200"
                     }`}
                   >
-                    <div>{m.content}</div>
+                    {renderMessageContent(m.content, i)}
                     {m.chart && (
                       <div className="mt-3 p-4 bg-white rounded-lg border">
                         <div className="mb-2">
@@ -1154,6 +1223,29 @@ function ChatWindow({
                         <div className="w-full h-64">
                           <ChartRenderer payload={m.chart} />
                         </div>
+                      </div>
+                    )}
+                    {/* Training data toggle for assistant messages */}
+                    {m.role === "assistant" && m.contextData && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => toggleTrainingData(i)}
+                          className="text-xs text-gray-600 hover:text-gray-800 underline"
+                        >
+                          {showTrainingData.has(i) ? "Hide" : "Show"} training
+                          data ({m.responseStats?.used} responses,{" "}
+                          {Math.round(
+                            ((m.responseStats?.used || 0) /
+                              (m.responseStats?.totalResponses || 1)) *
+                              100
+                          )}
+                          %)
+                        </button>
+                        {showTrainingData.has(i) && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono">
+                            {m.contextData}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1216,22 +1308,7 @@ export default function CampaignAnalyticsPage() {
   const [party, setParty] = useState<string>("All");
   const [region, setRegion] = useState<string>("All");
   const [command, setCommand] = useState("");
-  const [specs, setSpecs] = useState<ChartSpec[]>([
-    {
-      id: makeId(),
-      kind: "bar",
-      question: "Q1",
-      by: "party",
-      title: "Approval (Q1) by party",
-    },
-    {
-      id: makeId(),
-      kind: "line",
-      question: "Q1",
-      title: "Approval trend (Q1) over time",
-    },
-    { id: makeId(), kind: "pie", by: "answers.Q3", title: "Top Issues share" },
-  ]);
+  const [specs, setSpecs] = useState<ChartSpec[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
 
   // Analyzer-driven Chart.js (proxy to /api/campaigns/[id]/analyze → /api/chat-charts)
@@ -1602,64 +1679,6 @@ export default function CampaignAnalyticsPage() {
                   </div>
 
                   {/* Controls */}
-                  <Card className="rounded-2xl border border-gray-200">
-                    <CardContent className="p-4">
-                      <div className="flex flex-col md:flex-row md:items-end gap-4">
-                        <div className="flex-1">
-                          <label className="text-xs text-gray-600">
-                            Create with natural language
-                          </label>
-                          <div className="flex gap-2 mt-1">
-                            <Input
-                              value={command}
-                              onChange={(e) => setCommand(e.target.value)}
-                              placeholder='e.g. "bar chart Q1 by party"; "line chart Q2 over time"; "remove last"'
-                            />
-                            <Button onClick={runCommand}>
-                              <Sparkles className="w-4 h-4 mr-2" />
-                              Add
-                            </Button>
-                          </div>
-                        </div>
-                        <Separator
-                          orientation="vertical"
-                          className="hidden md:block h-10"
-                        />
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 w-full md:w-auto">
-                          <Select
-                            label="Days"
-                            value={String(days)}
-                            onChange={(v) => setDays(Number(v))}
-                            options={["7", "14", "30", "60"]}
-                          />
-                          <Select
-                            label="Age"
-                            value={age}
-                            onChange={setAge}
-                            options={options.ages}
-                          />
-                          <Select
-                            label="Gender"
-                            value={gender}
-                            onChange={setGender}
-                            options={options.genders}
-                          />
-                          <Select
-                            label="Party"
-                            value={party}
-                            onChange={setParty}
-                            options={options.parties}
-                          />
-                          <Select
-                            label="Region"
-                            value={region}
-                            onChange={setRegion}
-                            options={options.regions}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
 
                   {/* Analyzer → Chart.js generator */}
                   <Card className="rounded-2xl border border-gray-200">
@@ -1890,72 +1909,8 @@ export default function CampaignAnalyticsPage() {
                   </div>
 
                   {/* Help */}
-                  <Card className="rounded-2xl border border-gray-200">
-                    <CardContent className="p-4 text-sm text-gray-600">
-                      <div className="font-medium mb-1">
-                        Try these commands:
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          "bar chart Q1 by party",
-                          "bar chart Q1 by age",
-                          "line chart Q2 over time",
-                          "pie chart by gender for Q3",
-                          "table of responses for Q1 by region",
-                          "remove last",
-                        ].map((c) => (
-                          <Badge
-                            key={c}
-                            variant="outline"
-                            className="cursor-pointer"
-                            onClick={() => setCommand(c)}
-                          >
-                            {c}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
 
                   {/* (Optional) Original tiny "Responses per day" for continuity */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Responses per day</CardTitle>
-                      <CardDescription>
-                        Last {groupedByDay.length} days
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {groupedByDay.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">
-                          No data yet
-                        </div>
-                      ) : (
-                        <div className="flex items-end gap-2 h-40">
-                          {groupedByDay.map((b) => (
-                            <div
-                              key={b.date}
-                              className="flex flex-col items-center gap-1"
-                            >
-                              <div
-                                className="w-8 bg-primary/70 rounded"
-                                style={{
-                                  height: `${Math.max(
-                                    8,
-                                    (b.count / maxCount) * 100
-                                  )}%`,
-                                }}
-                                title={`${b.date}: ${b.count}`}
-                              />
-                              <div className="text-[10px] text-muted-foreground">
-                                {b.date.slice(5)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
                 </div>
               )}
 
@@ -1963,18 +1918,6 @@ export default function CampaignAnalyticsPage() {
               {activeTab === "responses" && (
                 <ResponsesView responses={responses} campaign={campaign} />
               )}
-
-              {/* Debug: Show first 10 responses */}
-              <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-lg font-semibold mb-4">
-                  First 10 Responses (Debug)
-                </h3>
-                <div className="max-h-96 overflow-y-auto">
-                  <pre className="text-xs bg-white p-3 rounded border">
-                    {JSON.stringify(responses.slice(0, 10), null, 2)}
-                  </pre>
-                </div>
-              </div>
 
               {/* Bottom chat dock + window available on all tabs (client-side QA over filtered rows) */}
               <ChatDock onOpen={() => setChatOpen(true)} />

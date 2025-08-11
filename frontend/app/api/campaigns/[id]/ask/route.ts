@@ -104,7 +104,7 @@ export async function POST(
 
     // Group all answers by question ID to create question: answer1, answer2 format
     const questionAnswers: Record<string, string[]> = {};
-    
+
     shuffledResponses.forEach((response: any) => {
       const answers = response.answers || {};
       Object.entries(answers).forEach(([questionId, answer]) => {
@@ -126,7 +126,7 @@ export async function POST(
       })
       .join("\n");
 
-    const systemPrompt = `You are a helpful AI Assistant that is tasked to answer the following question "USERCHATINPUT". You should answer the question in the shortest possible way in 2-3 sentences. Please respond in JSON. The JSON should contain "text_answer" and "graphic". To show the graphic we need you to give us structured output that we can turn into a graph. We are using Chart.js.`;
+    const systemPrompt = `You are a helpful AI Assistant that is tasked to answer the following question "USERCHATINPUT". You should answer the question in the shortest possible way in 2-3 sentences. Please respond in JSON. The JSON should contain "text_answer" and "graphic". To show the graphic we need you to give us structured output that we can turn into a graph. We are using Chart.js. Dont return the answers.`;
 
     // Prepare the response data to include in the output
     const responseData = shuffledResponses.map((response: any) => ({
@@ -142,7 +142,11 @@ export async function POST(
       },
       {
         role: "user",
-        content: `Question: ${question}\n\nData (top ${shuffledResponses.length} responses):\n${contextText}`,
+        content: `Question: ${question}\n\nData from top ${
+          shuffledResponses.length
+        } responses (${Math.round(
+          (shuffledResponses.length / (totalResponses || 1)) * 100
+        )}% of total):\n${contextText}`,
       },
     ] as any;
     const chat = await (openai as any).chat.completions.create({
@@ -170,6 +174,7 @@ export async function POST(
       used: shuffledResponses.length,
       totalResponses,
       responseData: responseData,
+      contextData: contextText, // The formatted question-answer pairs used in the prompt
     });
   } catch (err: any) {
     return NextResponse.json(
