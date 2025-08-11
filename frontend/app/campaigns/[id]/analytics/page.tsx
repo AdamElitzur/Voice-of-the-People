@@ -969,10 +969,12 @@ function ChatWindow({
   open,
   onClose,
   rows,
+  campaignId,
 }: {
   open: boolean;
   onClose: () => void;
   rows: ViewRow[];
+  campaignId: string;
 }) {
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<
@@ -984,6 +986,67 @@ function ChatWindow({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" });
   }, [msgs, open]);
+
+  async function callAskAPI(question: string) {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        let messageContent = result.answer || "No response";
+
+        // Add the top 10% response data to the message
+        if (result.responseData && result.responseData.length > 0) {
+          messageContent += `\n\n**Top ${result.used} responses (${Math.round(
+            (result.used / result.totalResponses) * 100
+          )}% of total):**\n`;
+          result.responseData.forEach((response: any, index: number) => {
+            const answers = Object.entries(response.answers || {})
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(", ");
+            messageContent += `\n${index + 1}. **Response ${
+              response.id
+            }** (${new Date(
+              response.created_at
+            ).toLocaleDateString()})\n   ${answers}`;
+          });
+        }
+
+        const newMessage: any = {
+          role: "assistant",
+          content: messageContent,
+        };
+
+        // If there's a graphic, create a chart payload
+        if (result.graphic) {
+          newMessage.chart = {
+            title: "AI Generated Chart",
+            description: "Chart based on poll data analysis",
+            chart: result.graphic,
+            assistantText:
+              result.answer || "Here's your chart based on the poll data:",
+          };
+        }
+
+        setMsgs((m) => [...m, newMessage]);
+      } else {
+        // Fallback to local answer if API fails
+        const a = answerQuestion(rows, question);
+        setMsgs((m) => [...m, { role: "assistant", content: a }]);
+      }
+    } catch (error) {
+      console.error("Ask API error:", error);
+      // Fallback to local answer if API fails
+      const a = answerQuestion(rows, question);
+      setMsgs((m) => [...m, { role: "assistant", content: a }]);
+    }
+  }
 
   async function onSend() {
     if (!input.trim() || isGenerating) return;
@@ -1030,17 +1093,16 @@ function ChatWindow({
             },
           ]);
         } else {
-          // Fallback to text response
-          const a = answerQuestion(rows, q);
-          setMsgs((m) => [...m, { role: "assistant", content: a }]);
+          // Fallback to ask API for text response
+          await callAskAPI(q);
         }
       } else {
-        // Regular text response
-        const a = answerQuestion(rows, q);
-        setMsgs((m) => [...m, { role: "assistant", content: a }]);
+        // Regular text response using ask API
+        await callAskAPI(q);
       }
     } catch (error) {
       console.error("Chat error:", error);
+      // Fallback to local answer if API fails
       const a = answerQuestion(rows, q);
       setMsgs((m) => [...m, { role: "assistant", content: a }]);
     } finally {
@@ -1550,12 +1612,25 @@ export default function CampaignAnalyticsPage() {
                 <ResponsesView responses={responses} campaign={campaign} />
               )}
 
+              {/* Debug: Show first 10 responses */}
+              <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4">
+                  First 10 Responses (Debug)
+                </h3>
+                <div className="max-h-96 overflow-y-auto">
+                  <pre className="text-xs bg-white p-3 rounded border">
+                    {JSON.stringify(responses.slice(0, 10), null, 2)}
+                  </pre>
+                </div>
+              </div>
+
               {/* Bottom chat dock + window available on all tabs (client-side QA over filtered rows) */}
               <ChatDock onOpen={() => setChatOpen(true)} />
               <ChatWindow
                 open={chatOpen}
                 onClose={() => setChatOpen(false)}
                 rows={filteredRows}
+                campaignId={campaignId}
               />
             </>
           )}
