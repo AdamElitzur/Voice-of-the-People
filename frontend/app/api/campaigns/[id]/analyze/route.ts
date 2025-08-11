@@ -25,7 +25,7 @@ export async function POST(
             analyzerUrl?: string;
             limitResponses?: number;
         };
-        const analyzerUrl = body?.analyzerUrl || process.env.ANALYZER_URL || "http://127.0.0.1:8000/analyze";
+        const analyzerUrl = body?.analyzerUrl || process.env.ANALYZER_URL || "https://7b5e40bf3b2a.ngrok-free.app/analyze";
         const limitResponses = Number.isFinite(Number(body?.limitResponses))
             ? Math.max(1, Math.min(5000, Number(body?.limitResponses)))
             : undefined;

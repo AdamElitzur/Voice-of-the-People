@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -72,6 +73,7 @@ import {
   PolarArea,
   Scatter as ChartScatter,
 } from "react-chartjs-2";
+import type { ChartData, ChartOptions, TooltipItem } from "chart.js";
 
 ChartJS.register(
   CategoryScale,
@@ -955,8 +957,9 @@ function ChatDock({ onOpen }: { onOpen: () => void }) {
             >
               <MessageSquare className="w-5 h-5" />
               <span className="text-gray-600">
-                Ask about your poll data or create charts… (e.g., "Show a bar
-                chart of Q1 by party", "Pie chart of top issues")
+                Ask about your poll data or create charts… (e.g., &quot;Show a
+                bar chart of Q1 by party&quot;, &quot;Pie chart of top
+                issues&quot;)
               </span>
             </button>
           </div>
@@ -1002,21 +1005,13 @@ function ChatWindow({
         const result = await res.json();
         let messageContent = result.answer || "No response";
 
-        // Add the top 10% response data to the message
-        if (result.responseData && result.responseData.length > 0) {
-          messageContent += `\n\n**Top ${result.used} responses (${Math.round(
+        // Add the formatted question-answer data used in the analysis
+        if (result.contextData) {
+          messageContent += `\n\n**Training data used (${
+            result.used
+          } responses, ${Math.round(
             (result.used / result.totalResponses) * 100
-          )}% of total):**\n`;
-          result.responseData.forEach((response: any, index: number) => {
-            const answers = Object.entries(response.answers || {})
-              .map(([key, value]) => `${key}: ${value}`)
-              .join(", ");
-            messageContent += `\n${index + 1}. **Response ${
-              response.id
-            }** (${new Date(
-              response.created_at
-            ).toLocaleDateString()})\n   ${answers}`;
-          });
+          )}% of total):**\n${result.contextData}`;
         }
 
         const newMessage: any = {
@@ -1268,14 +1263,16 @@ export default function CampaignAnalyticsPage() {
     };
   };
 
-  const labelColors: Record<string, string> = {
-    left: "#2563eb",
-    center: "#10b981",
-    right: "#ef4444",
-  };
+  const labelColors = useMemo<Record<string, string>>(
+    () => ({ left: "#2563eb", center: "#10b981", right: "#ef4444" }),
+    []
+  );
 
-  const projectionChart = useMemo(() => {
-    const items: AnalyzerItem[] = analyzerRaw?.items || [];
+  const projectionChart = useMemo((): {
+    data: ChartData<"scatter", { x: number; y: number }[], unknown>;
+    options: ChartOptions<"scatter">;
+  } | null => {
+    const items: AnalyzerItem[] = (analyzerRaw?.items as AnalyzerItem[]) || [];
     if (!Array.isArray(items) || items.length === 0) return null;
     const grouped: Record<
       string,
@@ -1295,15 +1292,19 @@ export default function CampaignAnalyticsPage() {
     }));
     const axisTitle = projection.toUpperCase();
     return {
-      data: { datasets },
+      data: { datasets } as ChartData<
+        "scatter",
+        { x: number; y: number }[],
+        unknown
+      >,
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
           tooltip: {
             callbacks: {
-              label: (ctx: any) => {
-                const d = ctx.raw as { x: number; y: number };
+              label: (ctx: TooltipItem<"scatter">) => {
+                const d = ctx.raw as unknown as { x: number; y: number };
                 const dsIndex = ctx.datasetIndex;
                 const pointIndex = ctx.dataIndex;
                 // Reconstruct to fetch meta for tooltip
@@ -1328,9 +1329,9 @@ export default function CampaignAnalyticsPage() {
           x: { title: { display: true, text: `${axisTitle} — 1` } },
           y: { title: { display: true, text: `${axisTitle} — 2` } },
         },
-      },
+      } as ChartOptions<"scatter">,
     };
-  }, [analyzerRaw, projection]);
+  }, [analyzerRaw, projection, labelColors]);
 
   async function onGenerateAnalyzerChart() {
     if (!campaignId) return;
@@ -1355,8 +1356,9 @@ export default function CampaignAnalyticsPage() {
         const err = await analyzeRes.json().catch(() => ({}));
         throw new Error(err?.error || "Analyzer request failed");
       }
-      const analyzeJson = await analyzeRes.json();
-      const analyzerData = analyzeJson?.analyzer ?? null;
+      const analyzeJson: unknown = await analyzeRes.json();
+      const analyzerData =
+        (analyzeJson as { analyzer?: AnalyzerResponse })?.analyzer ?? null;
       if (!analyzerData) throw new Error("Analyzer returned no data");
       setAnalyzerRaw(analyzerData);
 
@@ -1777,7 +1779,7 @@ export default function CampaignAnalyticsPage() {
                               <Input
                                 value={analyzerUrl}
                                 onChange={(e) => setAnalyzerUrl(e.target.value)}
-                                placeholder="default: http://127.0.0.1:8000/analyze"
+                                placeholder="default: https://7b5e40bf3b2a.ngrok-free.app/analyze"
                               />
                             </div>
                             <div style={{ gridColumn: "1 / span 2" }}>
