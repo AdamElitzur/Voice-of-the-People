@@ -1012,11 +1012,10 @@ function ChatWindow({
             const answers = Object.entries(response.answers || {})
               .map(([key, value]) => `${key}: ${value}`)
               .join(", ");
-            messageContent += `\n${index + 1}. **Response ${
-              response.id
-            }** (${new Date(
-              response.created_at
-            ).toLocaleDateString()})\n   ${answers}`;
+            messageContent += `\n${index + 1}. **Response ${response.id
+              }** (${new Date(
+                response.created_at
+              ).toLocaleDateString()})\n   ${answers}`;
           });
         }
 
@@ -1239,7 +1238,7 @@ export default function CampaignAnalyticsPage() {
   const [chatOpen, setChatOpen] = useState(false);
 
   // Analyzer-driven Chart.js (proxy to /api/campaigns/[id]/analyze → /api/chat-charts)
-  const [useAnalyzer, setUseAnalyzer] = useState<boolean>(false);
+  const [useAnalyzer, setUseAnalyzer] = useState<boolean>(true);
   const [analyzerLimit, setAnalyzerLimit] = useState<string>("");
   const [analyzerUrl, setAnalyzerUrl] = useState<string>("");
   const [analyzerPrompt, setAnalyzerPrompt] = useState<string>(
