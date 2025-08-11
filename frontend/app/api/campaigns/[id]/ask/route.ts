@@ -7,6 +7,45 @@ import {
   ensureSupabaseConfigured,
 } from "../../../_lib/server";
 
+// Helper function to get question text (matches frontend logic)
+function getQuestionText(questionId: string, campaign: any): string {
+  // Handle standard questions
+  if (questionId === "Q1") return "Approval Rating";
+  if (questionId === "Q2") return "Likelihood to Vote";
+  if (questionId === "Q3") return "Most Important Issue";
+  if (questionId === "Q4") return "Political Leaning";
+
+  // Handle dynamic questions from campaign form_schema
+  if (campaign?.form_schema) {
+    try {
+      // Parse the form_schema JSON if it's a string
+      const schema =
+        typeof campaign.form_schema === "string"
+          ? JSON.parse(campaign.form_schema)
+          : campaign.form_schema;
+
+      if (schema?.questions && Array.isArray(schema.questions)) {
+        const question = schema.questions.find((q: any) => q.id === questionId);
+        if (question) {
+          return (
+            question.title || question.text || question.label || questionId
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error parsing form_schema:", error);
+    }
+  }
+
+  // Fallback: try the old questions format
+  if (campaign?.questions) {
+    const question = campaign.questions.find((q: any) => q.id === questionId);
+    if (question) return question.text || question.label || questionId;
+  }
+
+  return questionId;
+}
+
 export async function POST(
   req: Request,
   { params }: { params: { id: string } }
@@ -30,9 +69,9 @@ export async function POST(
         { status: 400 }
       );
     }
-    const { error: campErr } = await supabase
+    const { data: campaign, error: campErr } = await supabase
       .from("campaigns")
-      .select("id")
+      .select("*")
       .eq("id", params.id)
       .eq("created_by", userId)
       .single();
@@ -63,25 +102,29 @@ export async function POST(
       () => Math.random() - 0.5
     );
 
-    // Format the responses as context text
-    const contextText = shuffledResponses
-      .map((response: any) => {
-        const answers = response.answers || {};
-        const answerText = Object.entries(answers)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join(", ");
-        const meta = response.respondent_meta || {};
-        const metaText = Object.entries(meta)
-          .filter(
-            ([key, value]) => key !== "user_agent" && key !== "ip" && value
-          )
-          .map(([key, value]) => `${key}: ${value}`)
-          .join(", ");
-        return `Response ID: ${response.id}\nDate: ${
-          response.created_at
-        }\nAnswers: ${answerText}${metaText ? `\nMeta: ${metaText}` : ""}`;
+    // Group all answers by question ID to create question: answer1, answer2 format
+    const questionAnswers: Record<string, string[]> = {};
+    
+    shuffledResponses.forEach((response: any) => {
+      const answers = response.answers || {};
+      Object.entries(answers).forEach(([questionId, answer]) => {
+        if (!questionAnswers[questionId]) {
+          questionAnswers[questionId] = [];
+        }
+        if (answer !== null && answer !== undefined && answer !== "") {
+          questionAnswers[questionId].push(String(answer));
+        }
+      });
+    });
+
+    // Format as "Question Name: answer1, answer2, answer3..."
+    const contextText = Object.entries(questionAnswers)
+      .map(([questionId, answers]) => {
+        const questionText = getQuestionText(questionId, campaign);
+        const uniqueAnswers = [...new Set(answers)]; // Remove duplicates
+        return `${questionText}: ${uniqueAnswers.join(", ")}`;
       })
-      .join("\n---\n");
+      .join("\n");
 
     const systemPrompt = `You are a helpful AI Assistant that is tasked to answer the following question "USERCHATINPUT". You should answer the question in the shortest possible way in 2-3 sentences. Please respond in JSON. The JSON should contain "text_answer" and "graphic". To show the graphic we need you to give us structured output that we can turn into a graph. We are using Chart.js.`;
 
