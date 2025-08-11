@@ -70,6 +70,7 @@ import {
   Doughnut,
   Radar,
   PolarArea,
+    Scatter as ChartScatter,
 } from "react-chartjs-2";
 
 ChartJS.register(
@@ -662,12 +663,12 @@ function llmInterpret(command: string): ChartSpec[] | string {
   const q = includesOne(cmd, ["q1", "approval"])
     ? "Q1"
     : includesOne(cmd, ["q2", "likely", "vote"])
-    ? "Q2"
-    : includesOne(cmd, ["q3", "issue"])
-    ? "Q3"
-    : includesOne(cmd, ["q4", "lean"])
-    ? "Q4"
-    : "Q1";
+      ? "Q2"
+      : includesOne(cmd, ["q3", "issue"])
+        ? "Q3"
+        : includesOne(cmd, ["q4", "lean"])
+          ? "Q4"
+          : "Q1";
   let by: ChartSpec["by"] | undefined;
   if (cmd.includes("by age")) by = "age";
   else if (cmd.includes("by gender")) by = "gender";
@@ -740,9 +741,8 @@ function answerQuestion(rows: ViewRow[], text: string): string {
       "top issue",
     ])
   ) {
-    return `In view: ${metrics.n.toLocaleString()} responses. Approval ≥4: ${
-      metrics.approve
-    }%. Likely-to-vote ≥4: ${metrics.likely}%. Top issue: ${metrics.topIssue}.`;
+    return `In view: ${metrics.n.toLocaleString()} responses. Approval ≥4: ${metrics.approve
+      }%. Likely-to-vote ≥4: ${metrics.likely}%. Top issue: ${metrics.topIssue}.`;
   }
   const groupKey = ["party", "age", "gender", "region", "issue"].find((k) =>
     cmd.includes("by " + k)
@@ -750,12 +750,12 @@ function answerQuestion(rows: ViewRow[], text: string): string {
   const q = includesOne(cmd, ["q1", "approval"])
     ? "Q1"
     : includesOne(cmd, ["q2", "likely", "vote"])
-    ? "Q2"
-    : includesOne(cmd, ["q3", "issue"])
-    ? "Q3"
-    : includesOne(cmd, ["q4", "lean"])
-    ? "Q4"
-    : undefined;
+      ? "Q2"
+      : includesOne(cmd, ["q3", "issue"])
+        ? "Q3"
+        : includesOne(cmd, ["q4", "lean"])
+          ? "Q4"
+          : undefined;
   if (groupKey && q) {
     const by = groupKey === "issue" ? "answers.Q3" : (groupKey as any);
     const rowsum = summarizeByCategory(rows, q, by as any);
@@ -1071,16 +1071,14 @@ function ChatWindow({
               {msgs.map((m, i) => (
                 <div
                   key={i}
-                  className={`flex ${
-                    m.role === "user" ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
+                    }`}
                 >
                   <div
-                    className={`rounded-2xl px-3 py-2 text-sm max-w-full ${
-                      m.role === "user"
+                    className={`rounded-2xl px-3 py-2 text-sm max-w-full ${m.role === "user"
                         ? "bg-blue-50 border border-blue-200"
                         : "bg-gray-50 border border-gray-200"
-                    }`}
+                      }`}
                   >
                     <div>{m.content}</div>
                     {m.chart && (
@@ -1175,6 +1173,141 @@ export default function CampaignAnalyticsPage() {
     { id: makeId(), kind: "pie", by: "answers.Q3", title: "Top Issues share" },
   ]);
   const [chatOpen, setChatOpen] = useState(false);
+
+  // Analyzer-driven Chart.js (proxy to /api/campaigns/[id]/analyze → /api/chat-charts)
+  const [useAnalyzer, setUseAnalyzer] = useState<boolean>(false);
+  const [analyzerLimit, setAnalyzerLimit] = useState<string>("");
+  const [analyzerUrl, setAnalyzerUrl] = useState<string>("");
+  const [analyzerPrompt, setAnalyzerPrompt] = useState<string>(
+    "Create a clear chart from the analyzer output. Pick a suitable chart type and explain briefly."
+  );
+  const [analyzerChartType, setAnalyzerChartType] = useState<
+    "bar" | "line" | "pie" | "doughnut" | "radar" | "polarArea" | ""
+  >("bar");
+  const [analyzerLoading, setAnalyzerLoading] = useState<boolean>(false);
+  const [analyzerError, setAnalyzerError] = useState<string | null>(null);
+  const [analyzerChart, setAnalyzerChart] = useState<ChartPayload | null>(null);
+  const [analyzerRaw, setAnalyzerRaw] = useState<any | null>(null);
+  const [projection, setProjection] = useState<"umap" | "pca" | "tsne">(
+    "umap"
+  );
+
+  type AnalyzerItem = {
+    id: string;
+    question: string;
+    answer: string;
+    pred_label?: string;
+    ideology_score?: number;
+    projections?: {
+      pca?: [number, number];
+      tsne?: [number, number];
+      umap?: [number, number];
+    };
+  };
+
+  const labelColors: Record<string, string> = {
+    left: "#2563eb",
+    center: "#10b981",
+    right: "#ef4444",
+  };
+
+  const projectionChart = useMemo(() => {
+    const items: AnalyzerItem[] = analyzerRaw?.items || [];
+    if (!Array.isArray(items) || items.length === 0) return null;
+    const grouped: Record<string, { x: number; y: number; _meta: AnalyzerItem }[]> = {};
+    for (const it of items) {
+      const coords = it?.projections?.[projection];
+      if (!coords || coords.length !== 2) continue;
+      const key = (it.pred_label || "unknown").toLowerCase();
+      (grouped[key] ||= []).push({ x: coords[0], y: coords[1], _meta: it });
+    }
+    const datasets = Object.keys(grouped).map((label) => ({
+      label,
+      data: grouped[label].map((p) => ({ x: p.x, y: p.y })),
+      backgroundColor: labelColors[label] || "#6b7280",
+      pointRadius: 3,
+    }));
+    const axisTitle = projection.toUpperCase();
+    return {
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (ctx: any) => {
+                const d = ctx.raw as { x: number; y: number };
+                const dsIndex = ctx.datasetIndex;
+                const pointIndex = ctx.dataIndex;
+                // Reconstruct to fetch meta for tooltip
+                const label = datasets[dsIndex]?.label as string;
+                const metaItem = grouped[label]?.[pointIndex]?._meta as AnalyzerItem | undefined;
+                const q = metaItem?.question || "";
+                const ans = metaItem?.answer || "";
+                const ideol = metaItem?.ideology_score;
+                const prefix = `${label}: (${d.x.toFixed(2)}, ${d.y.toFixed(2)})`;
+                const extra = ideol !== undefined ? `, ideology: ${ideol}` : "";
+                return `${prefix}${extra}\n${q} — ${ans}`;
+              },
+            },
+          },
+          legend: { position: "top" as const },
+        },
+        scales: {
+          x: { title: { display: true, text: `${axisTitle} — 1` } },
+          y: { title: { display: true, text: `${axisTitle} — 2` } },
+        },
+      },
+    };
+  }, [analyzerRaw, projection]);
+
+  async function onGenerateAnalyzerChart() {
+    if (!campaignId) return;
+    try {
+      setAnalyzerLoading(true);
+      setAnalyzerError(null);
+      setAnalyzerChart(null);
+        setAnalyzerRaw(null);
+
+      const analyzeRes = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analyzerUrl: analyzerUrl || undefined,
+          limitResponses: analyzerLimit ? Number(analyzerLimit) : undefined,
+        }),
+      });
+      if (!analyzeRes.ok) {
+        const err = await analyzeRes.json().catch(() => ({}));
+        throw new Error(err?.error || "Analyzer request failed");
+      }
+      const analyzeJson = await analyzeRes.json();
+      const analyzerData = analyzeJson?.analyzer ?? null;
+      if (!analyzerData) throw new Error("Analyzer returned no data");
+      setAnalyzerRaw(analyzerData);
+
+      const chartRes = await fetch("/api/chat-charts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: analyzerPrompt }],
+          chartType: analyzerChartType || undefined,
+          data: analyzerData,
+        }),
+      });
+      if (!chartRes.ok) {
+        const err = await chartRes.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to generate chart");
+      }
+      const payload = (await chartRes.json()) as ChartPayload;
+      setAnalyzerChart(payload);
+    } catch (e: any) {
+      setAnalyzerError(e?.message || String(e));
+    } finally {
+      setAnalyzerLoading(false);
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -1449,6 +1582,116 @@ export default function CampaignAnalyticsPage() {
                             options={options.regions}
                           />
                         </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Analyzer → Chart.js generator */}
+                  <Card className="rounded-2xl border border-gray-200">
+                    <CardContent className="p-4">
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <input
+                            type="checkbox"
+                            checked={useAnalyzer}
+                            onChange={(e) => setUseAnalyzer(e.target.checked)}
+                            style={{ width: 18, height: 18 }}
+                          />
+                          <div style={{ fontSize: 14, color: "#4b5563" }}>
+                            Use external analyzer to transform Supabase responses, then generate a chart
+                          </div>
+                        </div>
+                        {useAnalyzer && (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                            <div>
+                              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Limit responses (optional)</div>
+                              <Input
+                                value={analyzerLimit}
+                                onChange={(e) => setAnalyzerLimit(e.target.value.replace(/[^0-9]/g, ""))}
+                                placeholder="e.g., 200"
+                              />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Projection</div>
+                              <select
+                                className="w-full border rounded-xl px-3 py-2 text-sm"
+                                value={projection}
+                                onChange={(e) => setProjection(e.target.value as any)}
+                              >
+                                <option value="umap">UMAP</option>
+                                <option value="pca">PCA</option>
+                                <option value="tsne">t-SNE</option>
+                              </select>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Chart type (hint)</div>
+                              <select
+                                className="w-full border rounded-xl px-3 py-2 text-sm"
+                                value={analyzerChartType}
+                                onChange={(e) => setAnalyzerChartType((e.target.value as any) || "")}
+                              >
+                                <option value="bar">bar</option>
+                                <option value="line">line</option>
+                                <option value="pie">pie</option>
+                                <option value="doughnut">doughnut</option>
+                                <option value="radar">radar</option>
+                                <option value="polarArea">polarArea</option>
+                              </select>
+                            </div>
+                            <div style={{ gridColumn: "1 / span 2" }}>
+                              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Analyzer URL (optional)</div>
+                              <Input
+                                value={analyzerUrl}
+                                onChange={(e) => setAnalyzerUrl(e.target.value)}
+                                placeholder="default: http://127.0.0.1:8000/analyze"
+                              />
+                            </div>
+                            <div style={{ gridColumn: "1 / span 2" }}>
+                              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Prompt to chart generator</div>
+                              <Input
+                                value={analyzerPrompt}
+                                onChange={(e) => setAnalyzerPrompt(e.target.value)}
+                                placeholder="Describe the chart you want from the analyzer output"
+                              />
+                            </div>
+                            <div style={{ gridColumn: "1 / span 2", display: "flex", alignItems: "center", gap: 12 }}>
+                              <Button onClick={onGenerateAnalyzerChart} disabled={analyzerLoading}>
+                                {analyzerLoading ? "Generating…" : "Generate Analyzer Chart"}
+                              </Button>
+                              {analyzerError && (
+                                <div style={{ fontSize: 13, color: "#ef4444" }}>{analyzerError}</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {analyzerChart && (
+                          <div style={{ marginTop: 8 }}>
+                            <div style={{ marginBottom: 8 }}>
+                              <div style={{ fontWeight: 600 }}>{analyzerChart.title}</div>
+                              <div style={{ color: "#6b7280", fontSize: 13 }}>
+                                {analyzerChart.description}
+                              </div>
+                            </div>
+                            <div style={{ width: "100%", height: 420 }}>
+                              <ChartRenderer payload={analyzerChart} />
+                            </div>
+                            {analyzerChart.assistantText && (
+                              <div style={{ marginTop: 8, fontSize: 13, color: "#6b7280" }}>
+                                {analyzerChart.assistantText}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {projectionChart && (
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                              Projection scatter ({projection.toUpperCase()})
+                            </div>
+                            <div style={{ width: "100%", height: 420 }}>
+                              <ChartScatter data={projectionChart.data as any} options={projectionChart.options as any} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

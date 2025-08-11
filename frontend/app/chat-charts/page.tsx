@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -33,21 +33,36 @@ ChartJS.register(
     TimeSeriesScale,
 );
 
+type ChartTypeUnion =
+    | 'bar'
+    | 'line'
+    | 'pie'
+    | 'doughnut'
+    | 'radar'
+    | 'polarArea'
+    | 'scatter'
+    | 'bubble';
+
+type GenericDataset = {
+    label: string;
+    data: number[];
+    [key: string]: unknown;
+};
+
+type GenericChartData = {
+    labels: Array<string | number>;
+    datasets: GenericDataset[];
+};
+
+type GenericChartOptions = Record<string, unknown> | undefined;
+
 type ChartPayload = {
     title: string;
     description: string;
     chart: {
-        type:
-        | 'bar'
-        | 'line'
-        | 'pie'
-        | 'doughnut'
-        | 'radar'
-        | 'polarArea'
-        | 'scatter'
-        | 'bubble';
-        data: any;
-        options?: any;
+        type: ChartTypeUnion;
+        data: GenericChartData;
+        options?: GenericChartOptions;
     };
     assistantText?: string;
 };
@@ -55,7 +70,10 @@ type ChartPayload = {
 function ChartRenderer({ payload }: { payload: ChartPayload | null }) {
     if (!payload) return null;
     const { chart } = payload;
-    const commonProps = { data: chart.data, options: chart.options } as any;
+    const commonProps: { data: GenericChartData; options?: GenericChartOptions } = {
+        data: chart.data,
+        options: chart.options,
+    };
 
     switch (chart.type) {
         case 'bar':
@@ -81,7 +99,7 @@ function ChartRenderer({ payload }: { payload: ChartPayload | null }) {
 
 export default function ChatChartsPage() {
     const [input, setInput] = useState('Show a bar chart of monthly revenue for 2024');
-    const [chartType, setChartType] = useState<'bar' | 'line' | 'pie' | 'doughnut' | 'radar' | 'polarArea' | 'scatter' | 'bubble' | ''>('bar');
+    const [chartType, setChartType] = useState<ChartTypeUnion | ''>('bar');
     const [payload, setPayload] = useState<ChartPayload | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -107,7 +125,7 @@ export default function ChatChartsPage() {
         setError(null);
         try {
             // If using Supabase -> Analyzer pipeline, fetch analyzer result first
-            let dataForChart: any = null;
+            let dataForChart: unknown = null;
             if (useCampaignAnalyzer) {
                 if (!campaignId) {
                     throw new Error('Campaign ID is required when using analyzer');
@@ -137,7 +155,7 @@ export default function ChatChartsPage() {
                 body: JSON.stringify({
                     messages: [{ role: 'user', content: input }],
                     chartType: chartType || undefined,
-                    data: useCampaignAnalyzer ? dataForChart : JSON.parse(dataJson || 'null'),
+                    data: useCampaignAnalyzer ? dataForChart : (JSON.parse(dataJson || 'null') as unknown),
                 }),
             });
             if (!res.ok) {
@@ -146,8 +164,8 @@ export default function ChatChartsPage() {
             }
             const json = (await res.json()) as ChartPayload;
             setPayload(json);
-        } catch (e: any) {
-            setError(e?.message || String(e));
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : String(e));
         } finally {
             setIsLoading(false);
         }
@@ -303,7 +321,7 @@ export default function ChatChartsPage() {
                             <select
                                 style={selectStyle}
                                 value={chartType}
-                                onChange={(e) => setChartType((e.target.value as any) || '')}
+                                onChange={(e) => setChartType((e.target.value as ChartTypeUnion) || '')}
                             >
                                 <option value="bar">bar</option>
                                 <option value="line">line</option>
