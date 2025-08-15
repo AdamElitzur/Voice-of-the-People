@@ -1,8 +1,14 @@
 # Voice of the People
 
+<div align="center">
+<img src="./assets/landing_page.png" alt="Voice of the People Landing Page" width="600">
+</div>
+
 A platform for collecting and analyzing political sentiment through surveys and AI-powered classification.
 
 **3rd Place Winner at the Cognition Hackathon** - Recognized for innovative use of AI in civic engagement and political analysis.
+
+🔗 **[Read more about this project](YOUR_POST_LINK_HERE)**
 
 ## Overview
 
@@ -15,6 +21,24 @@ Voice of the People allows politicians and organizations to create surveys with 
 - **Advanced Visualizations**: Chat to graph creation for deep data insights
 - **Interactive Dashboards**: Rich charts and data exploration tools
 - **Public Participation**: Shareable campaign links for public engagement
+
+### Campaign Builder
+
+<div align="center">
+<img src="./assets/campaign_builder.png" alt="Campaign Builder Interface" width="500">
+</div>
+
+### Analytics Dashboard
+
+<div align="center">
+<img src="./assets/dashboard.png" alt="Analytics Dashboard" width="500">
+</div>
+
+### Chat-to-Graphs Feature
+
+<div align="center">
+<img src="./assets/chat_to_graphs.png" alt="Chat to Graphs" width="500">
+</div>
 
 ## Architecture
 
