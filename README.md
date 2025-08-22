@@ -8,7 +8,9 @@ A platform for collecting and analyzing political sentiment through surveys and 
 
 **3rd Place Winner at the Cognition Hackathon** - Recognized for innovative use of AI in civic engagement and political analysis.
 
-🔗 **[Read more about this project](YOUR_POST_LINK_HERE)**
+🔗 **[Video demo for Voice of the People](https://www.linkedin.com/posts/adam-elitzur_i-wasnt-on-the-list-didnt-even-know-the-activity-7364412366681214976-QYEI?utm_source=share&utm_medium=member_desktop&rcm=ACoAAAVIH5sB8gYGRCX4EmcNMCuEZrkcielg4Ww)**
+
+🔗 **[Watch the hackathon pitch](https://x.com/AlexReibman/status/1956440563361743038)**
 
 ## Overview
 
